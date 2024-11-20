@@ -1,0 +1,10 @@
+name: appendix_gen
+
+channels:
+    - conda-forge
+
+dependencies:
+    - python=3.12
+    - numpy
+    - pandas
+    - python-docx
