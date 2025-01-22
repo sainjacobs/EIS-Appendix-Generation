@@ -32,8 +32,8 @@ def get_locations(location_crosswalk_path, fields):
 
     #Look up each field code's corresponding location title and add to a list
     locations = []
-    for f in fields:
-        locations.append(crosswalk.loc[crosswalk["DSSPartB"] == f, "Location (Title)"].values[0])
+    for field in fields:
+        locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Location (Title)"].values[0])
 
     return locations
 def parse_dssReader_output(dss_path, runs, field):
@@ -123,8 +123,8 @@ def create_exceedance_tables(t_dfs, wy_flags_path):
 
     #Calculate full simulation period average for each run and format to be added to exceedance table as one row
     stats_dfs = []
-    for t in t_dfs:
-        period_ave = t.mean(axis=0)
+    for run in t_dfs:
+        period_ave = run.mean(axis=0)
         stats_df = pd.DataFrame(period_ave)
         stats_df = stats_df.transpose()
 
@@ -140,34 +140,34 @@ def create_exceedance_tables(t_dfs, wy_flags_path):
     exc_probs = exc_tables[0]["Exc Prob"]
 
     # calculate wet, above normal, dry, etc water years (EC sum for year type/ count of year type)
-    for i in range(len(t_dfs)):
-        t_dfs[i]["flag"] = wy_flags["Year Type"]
+    for table_index in range(len(t_dfs)):
+        t_dfs[table_index]["flag"] = wy_flags["Year Type"]
         month_vals = {}
         # Also add full sim period average as a row in exceedance table
-        exc_tables[i] = pd.concat([exc_tables[i], stats_dfs[i].iloc[0:1]], ignore_index=True)
+        exc_tables[table_index] = pd.concat([exc_tables[table_index], stats_dfs[table_index].iloc[0:1]], ignore_index=True)
 
         #Iterate through each type of year (wet, above normal, etc) to compute sums
-        for y in range(len(year_types)):
-            for month in t_dfs[i].columns[:-1]:
+        for year_type in range(len(year_types)):
+            for month in t_dfs[table_index].columns[:-1]:
                 #Flags are 1 - 5 to specify which type of year
                 #Calculate mean of months classified as current year type based on flag
-                month_vals[month] = [t_dfs[i].loc[t_dfs[i]['flag'] == (y + 1), month].mean()]
+                month_vals[month] = [t_dfs[table_index].loc[t_dfs[table_index]['flag'] == (year_type + 1), month].mean()]
 
-            month_vals["Exc Prob"] = year_types[y]
+            month_vals["Exc Prob"] = year_types[year_type]
 
-            exc_tables[i] = pd.concat([exc_tables[i], pd.DataFrame.from_dict(month_vals)], ignore_index=True)
-        exc_tables[i].drop(columns=["Rank", "Exc Prob"], inplace=True)
-        exc_tables[i] = exc_tables[i].astype(float).round(1)
+            exc_tables[table_index] = pd.concat([exc_tables[table_index], pd.DataFrame.from_dict(month_vals)], ignore_index=True)
+        exc_tables[table_index].drop(columns=["Rank", "Exc Prob"], inplace=True)
+        exc_tables[table_index] = exc_tables[table_index].astype(float).round(1)
         # Add row labels for report tables in first column
-        exc_tables[i].insert(0, "Statistic",
+        exc_tables[table_index].insert(0, "Statistic",
                              ["10% Exceedance", "20% Exceedance", "30% Exceedance", "40% Exceedance", "50% Exceedance",
                               "60% Exceedance", "70% Exceedance", "80% Exceedance", "90% Exceedance",
                               "Full Simulation Period Average", "Wet Water Years (28%)",
                               "Above Normal Water Years (14%)", "Below Normal Water Years (18%)",
                               "Dry Water Years (24%)", "Critical Water Years (16%)"])
         # Move new header names to first row
-        exc_tables[i].index = exc_tables[i].index + 1  # shifting index
-        exc_tables[i] = exc_tables[i].sort_index()
+        exc_tables[table_index].index = exc_tables[table_index].index + 1  # shifting index
+        exc_tables[table_index] = exc_tables[table_index].sort_index()
 
     return exc_tables, exc_probs
 
@@ -311,7 +311,7 @@ def change_orientation(doc, new_orientation):
 
     return new_section
 
-def format_table(t, table, doc):
+def format_table(doc_table, table_df, doc):
     """
     Creates tables formatted for appendix report from exceedance tables
 
@@ -319,6 +319,8 @@ def format_table(t, table, doc):
     ----------
     t: docx table object
         Exceedance table to be formatted for report
+    table_df: dataframe
+        Dataframe containing data to go into report table
     doc: docx object
         Docx object containing table to be formatted
     """
@@ -326,13 +328,13 @@ def format_table(t, table, doc):
     change_table_font_size(doc, 8)
 
     # add the header rows.
-    for j in range(table.shape[-1]):
-        t.cell(0, j).text = table.columns[j]
+    for column_index in range(table_df.shape[1]):
+        doc_table.cell(0, column_index).text = table_df.columns[column_index]
 
     # add the rest of the data frame
-    for g in range(table.shape[0]):
-        for j in range(table.shape[-1]):
-            t.cell(g + 1, j).text = str(table.values[g, j])
+    for row_index in range(table_df.shape[0]):
+        for column_index in range(table_df.shape[1]):
+            doc_table.cell(row_index + 1, column_index).text = str(table_df.values[row_index, column_index])
 
     # Set table top and bottom borders
     borders = OxmlElement('w:tblBorders')
@@ -345,30 +347,30 @@ def format_table(t, table, doc):
     top_border.set(qn('w:sz'), '4')
     borders.append(top_border)
 
-    t._tbl.tblPr.append(borders)
+    doc_table._tbl.tblPr.append(borders)
 
     # Make headers bold
-    make_rows_bold(t.rows[0])
+    make_rows_bold(doc_table.rows[0])
 
     # Make first column bold
     bolding_columns = [0]
-    for row in list(range(table.shape[0] + 1)):
+    for row in list(range(table_df.shape[0] + 1)):
         for column in bolding_columns:
-            t.rows[row].cells[column].paragraphs[0].runs[0].font.bold = True
+            doc_table.rows[row].cells[column].paragraphs[0].runs[0].font.bold = True
 
     # Add superscript to Full Simulation Period Average cell
-    script_cell = t.cell(10, 0).paragraphs[0]
+    script_cell = doc_table.cell(10, 0).paragraphs[0]
     run = script_cell.add_run("a")
     run.font.superscript = True
 
     # Add borders to middle row and under header
-    for cell in t.rows[0].cells:
+    for cell in doc_table.rows[0].cells:
         set_cell_border(cell, bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
 
-    for cell in t.rows[10].cells:
+    for cell in doc_table.rows[10].cells:
         set_cell_border(cell, bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
 
-    for cell in t.rows[10].cells:
+    for cell in doc_table.rows[10].cells:
         set_cell_border(cell, top={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
 
     # Widen margins of table
@@ -380,14 +382,14 @@ def format_table(t, table, doc):
         section.right_margin = Cm(1.5)
 
     # Widen cell size in first column
-    for cell in t.columns[0].cells:
+    for cell in doc_table.columns[0].cells:
         cell.width = Inches(3.4)
 
     # Add commas to values in table
     add_commas_to_table(doc)
 
     # Align values in center of cells
-    for row in t.rows:
+    for row in doc_table.rows:
         for cell in row.cells:
             cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
@@ -420,9 +422,9 @@ def create_month_plot(fig_dfs, month, month_directory, alts, line_styles, line_c
         os.makedirs(month_directory)
 
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
-    for s in range(len(fig_dfs)):
+    for fig_index in range(len(fig_dfs)):
         # plot exceedance probability vs monthly EC
-        axs.plot(fig_dfs[s]["exc_prob"], fig_dfs[s][month], color=line_colors[s], linestyle=line_styles[s])
+        axs.plot(fig_dfs[fig_index]["exc_prob"], fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index])
 
         # flip x-axis
         plt.gca().invert_xaxis()
@@ -471,13 +473,13 @@ def create_stat_plot(stat_fig_dfs, stat, stat_directory, alts, line_styles, line
         os.makedirs(stat_directory)
 
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
-    for s in range(len(stat_fig_dfs)):
+    for fig_index in range(len(stat_fig_dfs)):
         if stat == "Full Simulation Period":
-            axs.plot(stat_fig_dfs[s]["month"], stat_fig_dfs[s]["Full Simulation Period Average"], color=line_colors[s],
-                     linestyle=line_styles[s])
+            axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index]["Full Simulation Period Average"], color=line_colors[fig_index],
+                     linestyle=line_styles[fig_index])
         else:
-            axs.plot(stat_fig_dfs[s]["month"], stat_fig_dfs[s][stat], color=line_colors[s],
-                     linestyle=line_styles[s])
+            axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat], color=line_colors[fig_index],
+                     linestyle=line_styles[fig_index])
 
         # Save this to position legend correctly
         axbox = axs.get_position()
