@@ -1,4 +1,4 @@
-from EISAppendixGen_fns import get_locations, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot, change_orientation
+from EISAppendixGen_functions import get_locations, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot, change_orientation
 import docx
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -13,11 +13,16 @@ if __name__ == "__main__":
 
     #Fields to use from DSS Reader
     fields = ["C_LWSTN", "C_CLR011"]#, "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120", "C_FTR059", "C_FTR003"]
+
     #Scenarios to compare
-    alts = ["NAA", "ALT1"]#, "Alt2woTUCPwoVA", "Alt2woTUCPDeltaVA", "Alt2woTUCPAllVA", "Alt2wTUCPwoVA", "ALT3", "Alt4"]
+    alts = ["NAA", "ALT1", "Alt2woTUCPwoVA", "Alt2woTUCPDeltaVA"]#, "Alt2woTUCPAllVA", "Alt2wTUCPwoVA", "ALT3", "Alt4"]
 
     #Specify whether report is "flow", "elevation', or "diversion"
     report_type = "flow"
+
+    #TODO Add selection of units (elevation, temperature, provide both cfs and taf?)
+    #Get more info from crosswalk, units, description, etc
+    #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
     appendix_prefix = " F.2.2"
@@ -25,6 +30,7 @@ if __name__ == "__main__":
     # Path to file with location code crosswalk
     location_cw_path = "C:/Users/emadonna/eis-appendix-generation/inputs/location_code_crosswalk.xlsx"
     #Path to file with DSSReader output
+    #Use output from DSS reader in desired units (CFS or TAF)
     dss_path = "C:/Users/emadonna/eis-appendix-generation/inputs/DSS_contents_CFS.xlsx"
     #Path to file with WY Typing data
     wy_flags_path = "C:/Users/emadonna/eis-appendix-generation/inputs/wy_flags.xlsx"
@@ -75,7 +81,7 @@ if __name__ == "__main__":
     # Create an instance of a word document
     doc = docx.Document()
 
-    for k, location in enumerate(fields):
+    for field_index, location in enumerate(fields):
 
         ##### Read DSSReader output ########
         dfs = parse_dssReader_output(dss_path, alts, location)
@@ -86,7 +92,7 @@ if __name__ == "__main__":
         ##### Use docx package to create a document with formatted table objects and save to Word .docx file ###########
 
         ## Add a table for each run in each comparison for the current field to the doc
-        for c, scenario in enumerate(comparisons):
+        for comparison_index, scenario in enumerate(comparisons):
 
             #Then third table for each comparison should be first alt minus second alt listed
             comparison_tables = []
@@ -101,10 +107,10 @@ if __name__ == "__main__":
             #Set up Comparison labels to be used in table titles
             comparison_table_labels = ["NAA", scenario[1], scenario[1] + " Minus " + "NAA"]
 
-            for i, table in enumerate(comparison_tables):
+            for comp_table_index, table in enumerate(comparison_tables):
 
                 # Generate table title
-                table_title = "Table " + appendix_prefix + "-" + str(k + 1) + "-" + str(c + 1) + chr(ord('a') + i)  +". " + locations[k] + ", " + comparison_table_labels[i] + ", " + table_value
+                table_title = "Table " + appendix_prefix + "-" + str(field_index + 1) + "-" + str(comparison_index + 1) + chr(ord('a') + comp_table_index)  +". " + locations[field_index] + ", " + comparison_table_labels[comp_table_index] + ", " + table_value
 
                 # Add caption above table
                 p = doc.add_paragraph()
@@ -121,32 +127,32 @@ if __name__ == "__main__":
                 format_table(t, table, doc)
 
             # Add footnotes to the final table
-            if i == (len(comparison_tables) - 1):
+            if comp_table_index == (len(comparison_tables) - 1):
                 # Add footnotes at end of table
-                f0 = doc.add_paragraph()
-                run = f0.add_run("a")
+                footnote0 = doc.add_paragraph()
+                run = footnote0.add_run("a")
                 run.font.superscript = True
-                run1 = f0.add_run(" Based on the 100-year simulation period.")
+                run1 = footnote0.add_run(" Based on the 100-year simulation period.")
                 run1.font.size = Pt(9)
-                f0.paragraph_format.space_after = Pt(1)
+                footnote0.paragraph_format.space_after = Pt(1)
 
-                f = doc.add_paragraph()
-                run = f.add_run('* All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
+                footnote1 = doc.add_paragraph()
+                run = footnote1.add_run('* All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
                 run.font.size = Pt(9)
-                f.paragraph_format.space_before = Pt(1)
-                f.paragraph_format.space_after = Pt(1)
+                footnote1.paragraph_format.space_before = Pt(1)
+                footnote1.paragraph_format.space_after = Pt(1)
 
-                f1 = doc.add_paragraph()
-                run = f1.add_run(
+                footnote2 = doc.add_paragraph()
+                run = footnote2.add_run(
                     '* Water Year Types defined by the Sacramento Valley 40-30-30 Index Water Year Hydrologic Classification (SWRCB D-1641, 1999).')
                 run.font.size = Pt(9)
-                f1.paragraph_format.space_before = Pt(1)
-                f1.paragraph_format.space_after = Pt(1)
+                footnote2.paragraph_format.space_before = Pt(1)
+                footnote2.paragraph_format.space_after = Pt(1)
 
-                f2 = doc.add_paragraph()
-                run = f2.add_run('* Water Year Types results are displayed with calendar year – year type sorting.')
+                footnote3 = doc.add_paragraph()
+                run = footnote3.add_run('* Water Year Types results are displayed with calendar year – year type sorting.')
                 run.font.size = Pt(9)
-                f2.paragraph_format.space_before = Pt(1)
+                footnote3.paragraph_format.space_before = Pt(1)
 
         #####Create Monthly EC and full simulation period statistic plots, save locally as images#####
 
@@ -156,10 +162,10 @@ if __name__ == "__main__":
        #Format percent exceedances for labels
         exc_percents = [str(x).split(".")[0] + "%" for x in exc_prob.values]
         #Remove simulation period statistic rows
-        for f in range(len(fig_dfs)):
-            fig_dfs[f] = fig_dfs[f][:-6]
+        for fig_index in range(len(fig_dfs)):
+            fig_dfs[fig_index] = fig_dfs[fig_index][:-6]
             #Add formatted exceedance probability percents back to dfs
-            fig_dfs[f]["exc_prob"] = exc_percents
+            fig_dfs[fig_index]["exc_prob"] = exc_percents
 
         #Can plot up to 8 scenarios, these lines prepare linestyle and color
         line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g"]
@@ -177,16 +183,16 @@ if __name__ == "__main__":
         ##Simulation Period Statistic Plots###
         stat_fig_dfs = copy.deepcopy(e_dfs)
 
-        for f in range(len(stat_fig_dfs)):
+        for stat_fig_index in range(len(stat_fig_dfs)):
             #keep only simulation period statistic rows
-            stat_fig_dfs[f] = stat_fig_dfs[f][-6:]
+            stat_fig_dfs[stat_fig_index] = stat_fig_dfs[stat_fig_index][-6:]
             #Transpose to plot all months at once
-            stat_fig_dfs[f] = stat_fig_dfs[f].transpose()
+            stat_fig_dfs[stat_fig_index] = stat_fig_dfs[stat_fig_index].transpose()
             #Drop first row
-            stat_fig_dfs[f].rename(columns=stat_fig_dfs[f].iloc[0], inplace=True)
-            stat_fig_dfs[f].drop(stat_fig_dfs[f].index[0], inplace=True)
+            stat_fig_dfs[stat_fig_index].rename(columns=stat_fig_dfs[stat_fig_index].iloc[0], inplace=True)
+            stat_fig_dfs[stat_fig_index].drop(stat_fig_dfs[stat_fig_index].index[0], inplace=True)
             #Add abbreviated month name column
-            stat_fig_dfs[f]["month"] = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+            stat_fig_dfs[stat_fig_index]["month"] = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
                                         "Sep"]
 
         #Check for/create directory to save stat plots
@@ -208,7 +214,7 @@ if __name__ == "__main__":
         stat_plots = os.listdir(stat_directory)
 
         #Iterate through each monthly figure in the month plots directory
-        for m, file in enumerate(month_plots):
+        for month_index, file in enumerate(month_plots):
             # Center figures in middle of page by adding some new lines above
             p = doc.add_paragraph()
             run = p.add_run()
@@ -216,7 +222,7 @@ if __name__ == "__main__":
             run.add_break()
 
             # Generate fig title
-            fig_title = "Figure " + appendix_prefix + str(m + 1) + ". " + locations[k] + ", " + datetime.datetime.strptime(file.split("_", 2)[1], '%b').strftime('%B') + " " + fig_value
+            fig_title = "Figure " + appendix_prefix + str(month_index + 1) + ". " + locations[field_index] + ", " + datetime.datetime.strptime(file.split("_", 2)[1], '%b').strftime('%B') + " " + fig_value
 
             # Add title above figure
             title = doc.add_paragraph()
@@ -243,7 +249,7 @@ if __name__ == "__main__":
 
         stat_titles = ["Long Term", "Wet Year", "Above Normal Year", "Below Normal Year", "Dry Year", 'Critical Year']
 
-        for s, file in enumerate(stat_plots):
+        for stat_plot_index, file in enumerate(stat_plots):
             # Center figures in middle of page by adding some new lines above
             p = doc.add_paragraph()
             run = p.add_run()
@@ -251,7 +257,7 @@ if __name__ == "__main__":
             run.add_break()
 
             # Generate fig title
-            fig_title = "Figure " + appendix_prefix + str(s + 1) + ". " + locations[k] + ", " + stat_titles[s] + " " + fig_value
+            fig_title = "Figure " + appendix_prefix + str(stat_plot_index + 1) + ". " + locations[field_index] + ", " + stat_titles[stat_plot_index] + " " + fig_value
 
             # Add title above figure
             title = doc.add_paragraph()
@@ -264,32 +270,33 @@ if __name__ == "__main__":
             doc.add_picture(stat_directory + "/" + file)
 
             # Add captions below figure
-            f = doc.add_paragraph()
-            run = f.add_run(
+            caption0 = doc.add_paragraph()
+            run = caption0.add_run(
                 '*As defined by the Sacramento Valley 40-30-30 Index Water Year Hydrologic Classification (SWRCB D-1641, 1999).')
             run.font.size = Pt(9)
-            f.paragraph_format.space_before = Pt(1)
-            f.paragraph_format.space_after = Pt(1)
+            caption0.paragraph_format.space_before = Pt(1)
+            caption0.paragraph_format.space_after = Pt(1)
 
-            f1 = doc.add_paragraph()
-            run = f1.add_run('*These results are displayed with calendar year - year type sorting.')
+            caption1 = doc.add_paragraph()
+            run = caption1.add_run('*These results are displayed with calendar year - year type sorting.')
             run.font.size = Pt(9)
-            f1.paragraph_format.space_before = Pt(1)
-            f1.paragraph_format.space_after = Pt(1)
-            f2 = doc.add_paragraph()
-            run = f2.add_run(
+            caption1.paragraph_format.space_before = Pt(1)
+            caption1.paragraph_format.space_after = Pt(1)
+
+            caption2 = doc.add_paragraph()
+            run = caption2.add_run(
                 '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
             run.font.size = Pt(9)
-            f2.paragraph_format.space_before = Pt(1)
+            caption2.paragraph_format.space_before = Pt(1)
 
             #No need for the page break if it's the final plot of the document
-            if s == (len(stat_plots) - 1) and k == (len(fields) - 1):
+            if stat_plot_index == (len(stat_plots) - 1) and field_index == (len(fields) - 1):
                 continue
             else:
                 doc.add_page_break()
 
             #Flip orientation back to portrait for the next group of tables
-            if s == (len(stat_plots) - 1):
+            if stat_plot_index == (len(stat_plots) - 1):
                 # Flip doc to landscape orientation for images
                 change_orientation(doc, "portrait")
 
