@@ -12,26 +12,22 @@ if __name__ == "__main__":
     ###USER INPUTS BELOW#####
 
     #Fields to use from DSS Reader
-    fields = ["C_LWSTN", "C_CLR011"]#, "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120", "C_FTR059", "C_FTR003"]
+    fields = ["C_LWSTN", "C_CLR011", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120", "C_FTR059", "C_FTR003"]
 
     #Scenarios to compare
-    alts = ["NAA", "ALT1", "Alt2woTUCPwoVA", "Alt2woTUCPDeltaVA"]#, "Alt2woTUCPAllVA", "Alt2wTUCPwoVA", "ALT3", "Alt4"]
+    alts = ["NAA", "ALT1", "Alt2woTUCPwoVA", "Alt2woTUCPDeltaVA", "Alt2woTUCPAllVA", "Alt2wTUCPwoVA", "ALT3", "Alt4"]
 
     #Specify whether report is "flow", "elevation', or "diversion"
     report_type = "flow"
-
-    #TODO Add selection of units (elevation, temperature, provide both cfs and taf?)
-    #Get more info from crosswalk, units, description, etc
-    #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
     appendix_prefix = " F.2.2"
 
     # Path to file with location code crosswalk
-    location_cw_path = "C:/Users/emadonna/eis-appendix-generation/inputs/location_code_crosswalk.xlsx"
+    location_cw_path = "C:/Users/emadonna/eis-appendix-generation/inputs/location_code_crosswalk_CalSim.xlsx"
     #Path to file with DSSReader output
     #Use output from DSS reader in desired units (CFS or TAF)
-    dss_path = "C:/Users/emadonna/eis-appendix-generation/inputs/DSS_contents_CFS.xlsx"
+    dss_path = "C:/Users/emadonna/eis-appendix-generation/inputs/DSS_contents_CFS_CalSim.xlsx"
     #Path to file with WY Typing data
     wy_flags_path = "C:/Users/emadonna/eis-appendix-generation/inputs/wy_flags.xlsx"
 
@@ -59,6 +55,7 @@ if __name__ == "__main__":
 
     # Alt Text strings, in order for tables
     alt_text_tables = ["Alt text table example" for t in range(0,num_tables)]
+
     # Alt text strings, order for figures
     alt_text_figures = ["This figure shows data also presented in data tables in this file." for f in range(0,num_figures)]
 
@@ -84,10 +81,10 @@ if __name__ == "__main__":
     for field_index, location in enumerate(fields):
 
         ##### Read DSSReader output ########
-        dfs = parse_dssReader_output(dss_path, alts, location)
+        dfs = parse_dssReader_output(dss_path, alts, report_type, location)
 
         #Create Exceedance Tables from DSS Reader output
-        e_dfs, exc_prob = create_exceedance_tables(dfs, wy_flags_path)
+        e_dfs, exc_prob = create_exceedance_tables(dfs, wy_flags_path, report_type)
 
         ##### Use docx package to create a document with formatted table objects and save to Word .docx file ###########
 
@@ -124,7 +121,7 @@ if __name__ == "__main__":
                 # extra row is so we can add the header row
                 t = doc.add_table(table.shape[0] + 1, table.shape[1])
                 #Format table for report
-                format_table(t, table, doc)
+                format_table(t, table, doc, report_type)
 
             # Add footnotes to the final table
             if comp_table_index == (len(comparison_tables) - 1):
@@ -178,7 +175,7 @@ if __name__ == "__main__":
         #Save month plots to directory
         month_directory = "month_plots"
         for month in fig_dfs[0].columns[1:-1]:
-            create_month_plot(fig_dfs, month, month_directory, alts, line_styles, line_colors)
+            create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
 
         ##Simulation Period Statistic Plots###
         stat_fig_dfs = copy.deepcopy(e_dfs)
@@ -205,7 +202,7 @@ if __name__ == "__main__":
 
         #Iterate through each stat and plot month abbreivated name by EC in current type of year
         for stat in stats:
-            create_stat_plot(stat_fig_dfs, stat, stat_directory, alts, line_styles, line_colors)
+            create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles, line_colors)
 
         ##Add saved figures to docx object as images####
 

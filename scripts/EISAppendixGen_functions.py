@@ -36,7 +36,7 @@ def get_locations(location_crosswalk_path, fields):
         locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Location (Title)"].values[0])
 
     return locations
-def parse_dssReader_output(dss_path, runs, field):
+def parse_dssReader_output(dss_path, runs, report_type, field):
     """
     Reads DSS output from reader for desired runs and field
 
@@ -46,6 +46,8 @@ def parse_dssReader_output(dss_path, runs, field):
         Path and file name for xlsx file containing DSSReader Output
     runs: list of strings
         Names of the runs to be processed
+    report_type: string
+        Type of report being generated. Used to check whether or not it's a temperature report
     field: string
         Current field being processed
 
@@ -54,6 +56,21 @@ def parse_dssReader_output(dss_path, runs, field):
     dss_output = pd.read_excel(dss_path)
 
     dss_output = dss_output[["Month", "Scenario", "WY", field]]
+
+    if report_type == "temperature":
+        #If temperature data is being read, convert daily data to monthly by averaging
+        #scenario = dss_output.loc[0, "Scenario"]
+        #dss_output.drop(columns = ["Scenario"], inplace = True)
+
+        monthly_data = dss_output.groupby(["Scenario", "WY", "Month"]).mean()
+        monthly_data.reset_index(inplace=True)
+        dss_output = monthly_data
+
+        #Drop rows with flag value for missing data
+        rows_to_drop = (dss_output[dss_output.columns[3:]] < -100).any(axis=1)
+        dss_output = dss_output[~rows_to_drop]
+
+        #dss_output["Scenario"] = scenario
 
     # Create df for each alternative/run and reformat
     run_dfs = []
@@ -86,11 +103,12 @@ def parse_dssReader_output(dss_path, runs, field):
             year_t.reset_index(drop=True, inplace=True)
             #Add each year as new row to df
             transposed_df = pd.concat([transposed_df, year_t.iloc[1:2]], axis=0, ignore_index=True)
+
         t_dfs.append(transposed_df)
 
     return t_dfs
 
-def create_exceedance_tables(t_dfs, wy_flags_path):
+def create_exceedance_tables(t_dfs, wy_flags_path, report_type):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
 
@@ -109,11 +127,15 @@ def create_exceedance_tables(t_dfs, wy_flags_path):
         #Remove first and last rows
         #table.iloc[::-1, ::1]
         #Rank ECs from 1 to 100
-        table.insert(0, "Rank", range(1,101))
+        table.insert(0, "Rank", range(1,table.shape[0] + 1))
         #Calculate exceedance probability and add column to table
         table.insert(1, "Exc Prob", (table["Rank"] - 1)/(table.shape[0]-1)*100)
-        #Round all table values to 1 decimal
-        table = table.round(1)
+
+        #Round all table values to 1 decimals for temp, 0 decimals for other
+        if report_type == "temperature":
+            table = table.round(1)
+        else:
+            table = table.round(0)
         #Keep only every 10th row so that only 10, 20, 30, etc. summary percents are shown in table
         table = table.iloc[::10]
         #Drop first row so that table starts at 10% exceedance prob
@@ -284,7 +306,33 @@ def add_commas_to_table(doc):
                             # If the text is not a number, do nothing
                             pass
 
+def format_decimals(doc):
+    """
+    Adds commas to numbers in all tables of a docx document.
 
+    Parameters
+    ----------
+    doc: docx document object
+        Document that will have commas added to numeric values in all tables
+
+    """
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        try:
+                            # Check if the text is a number
+                            number = float(run.text)
+                            # Format the number with commas
+                            #formatted_number = f"{number:,}"
+                            formatted_number = "{:.1f}".format(number)
+                            #formatted_number = formatted_number.rsplit(".", 1)[0]
+                            run.text = formatted_number
+                        except ValueError:
+                            # If the text is not a number, do nothing
+                            pass
 def change_orientation(doc, new_orientation):
     """
     Changes section orientation from portrait to landscape or vice versa
@@ -311,7 +359,7 @@ def change_orientation(doc, new_orientation):
 
     return new_section
 
-def format_table(doc_table, table_df, doc):
+def format_table(doc_table, table_df, doc, report_type):
     """
     Creates tables formatted for appendix report from exceedance tables
 
@@ -325,7 +373,7 @@ def format_table(doc_table, table_df, doc):
         Docx object containing table to be formatted
     """
     # Change font size to fit on page better
-    change_table_font_size(doc, 8)
+   # change_table_font_size(doc, 8)
 
     # add the header rows.
     for column_index in range(table_df.shape[1]):
@@ -385,8 +433,13 @@ def format_table(doc_table, table_df, doc):
     for cell in doc_table.columns[0].cells:
         cell.width = Inches(3.4)
 
-    # Add commas to values in table
-    add_commas_to_table(doc)
+    if report_type == "temperature":
+        #format numbers to one decimal pt
+        format_decimals(doc)
+    else:
+        # Add commas to values in table
+        add_commas_to_table(doc)
+        #Commas won't be needed for temperature values
 
     # Align values in center of cells
     for row in doc_table.rows:
@@ -398,7 +451,10 @@ def format_table(doc_table, table_df, doc):
         row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
         row.height = Cm(0.45)  # 2 cm
 
-def create_month_plot(fig_dfs, month, month_directory, alts, line_styles, line_colors):
+    # Change font size to fit on page better
+    change_table_font_size(doc, 8)
+
+def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_styles, line_colors):
     """
     Generates and saves individual month plots
 
@@ -429,7 +485,7 @@ def create_month_plot(fig_dfs, month, month_directory, alts, line_styles, line_c
         # flip x-axis
         plt.gca().invert_xaxis()
 
-        axs.set_ylabel("Monthly Flow (cfs)")
+        axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
 
         # Save this parameter to orient the legend correctly
@@ -450,7 +506,7 @@ def create_month_plot(fig_dfs, month, month_directory, alts, line_styles, line_c
     plt.savefig(month_directory + "/" + month_number + "_" + month + "_monthly_exceedance" + ".png")
     plt.close()
 
-def create_stat_plot(stat_fig_dfs, stat, stat_directory, alts, line_styles, line_colors):
+def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles, line_colors):
     """
     Generates and saves individual month plots
 
@@ -484,7 +540,7 @@ def create_stat_plot(stat_fig_dfs, stat, stat_directory, alts, line_styles, line
         # Save this to position legend correctly
         axbox = axs.get_position()
 
-        axs.set_ylabel("Monthly Flow (cfs)")
+        axs.set_ylabel(fig_value)
 
         # Add gridlines
         plt.grid(color='gray', linestyle='--', linewidth=0.8)
