@@ -20,7 +20,7 @@ conda env create -f apendix_gen.yml
 	2) In line 35, set the "model" variable equal to the string name of the type of model you wish to interpret data from
 	(options are "CALSIM", "HEC5Q" or "DSM2")
 	3) Beginning in line 37 in the "runs" list, for each list entry in "runs", enter the name of each of your dss files in the parentheses along with the name of the run 
-	(such as Baseline, Alt1, etc.). Refer to the NAA scenario as "Baseline". A NAA/Baseline scenario must be included in the runs for 
+	(such as Baseline, Alt1, etc.). Write the file names without using quotation marks. Refer to the NAA scenario as "Baseline". A NAA/Baseline scenario must be included in the runs for 
 	the appendix generation script to function properly down the line. . Don't forget the ".dss" file extension when you are specifying file names.
 	4) Beginning line 56, in the "add_field_list", specify the field variables that you want to retrieve from the DSS files. These correspond to the B part in the DSS pathname.
 	5) Run dssReader.py.
@@ -36,7 +36,7 @@ conda env create -f apendix_gen.yml
 	2) In the "fields" list on line 15, specify the same field variables that you specified in the DSS Reader to retrieve from the DSS files. These correspond to the B part
 	in the DSS pathname.
 	3) In line 18 in the "alts" list, specify the same run names that you provided in the DSSReader (such as NAA, Alt1, etc.) All names should be exactly the same, except that
-	"Baseline" should be referred to as "NAA" in these scripts.
+	"Baseline" should be referred to as "NAA" in these scripts. Write the file names without quotation marks.
 	4) In line 20, define the "report_type" variable as either "flow", "elevation", or "diversion" for a CalSim appendix, "temperature" for a HEC5Q appendix, 
 	or "salinity" for a DSM2 appendix.
 	5) In line 24, define the "appendix_prefix" with the prefix you want for all appendix tables and figures in your report. Include a leading space.
