@@ -17,7 +17,7 @@ if __name__ == "__main__":
     #Fields to use from DSS Reader
 
     # Use for running "elevations" report type, in desired order.
-    fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
+    # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     #Use for running "flow" report type
     # fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
@@ -26,15 +26,16 @@ if __name__ == "__main__":
     #           ]
 
     #Used for running "diversions" report type
-    # fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001","D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
-    # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
+    fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001"]
+    #,"D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
+    #"D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
     #Scenarios to compare
     alts = ["NAA", "Alt1", "Alt2a", 'Alt2b', 'Alt3', 'Alt4', 'Alt6', 'Alt7']
 
     #Specify whether report is "flow", "elevation', or "diversion"
     #Note: elevation option also includes storages.
-    report_type = "elevation"
+    report_type = "diversion"
 
     #For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
     use_lumped_table_captions = False
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
-    appendix_prefix = " F.2.1" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is discharge.
+    appendix_prefix = " F.2.3" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion.
 
     # Path to file with location code crosswalk
     location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_CalSim.xlsx"
@@ -186,8 +187,8 @@ if __name__ == "__main__":
             comparison_table_labels = ["NAA", scenario[1], scenario[1] + " Minus " + "NAA"]
 
             for comp_table_index, full_table in enumerate(comparison_tables):
-                #Subset the statistics table to
-                table = full_table.loc[~full_table.Statistic.isin(['0% Exceedance', '100% Exceedance'])].copy(deep = True)
+                #Subset the statistics table to exclude the lowest and highest probability of exceedance (usually 1% and 99% exceedance)
+                table = full_table.loc[~full_table.Statistic.isin([f'{round(exc_prob.iloc[0])}% Exceedance', f'{round(exc_prob.iloc[-1])}% Exceedance'])].copy(deep = True)
                 table.reset_index(inplace = True,drop = True)
 
                 table_letter = chr(ord('a') + comp_table_index)
@@ -260,7 +261,7 @@ if __name__ == "__main__":
         fig_dfs = copy.deepcopy(e_dfs)
 
        #Format percent exceedances for labels
-        exc_percents = [str(x).split(".")[0] + "%" for x in exc_prob.values]
+        exc_percents = [str(round(x)).split(".")[0] + "%" for x in exc_prob.values]
         #Remove simulation period statistic rows
         for fig_index in range(len(fig_dfs)):
             fig_dfs[fig_index] = fig_dfs[fig_index][:-6]

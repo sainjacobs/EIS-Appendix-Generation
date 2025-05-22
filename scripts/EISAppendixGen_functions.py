@@ -207,20 +207,37 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         #Rank ECs from 1 to 100
         table.insert(0, "Rank", range(1,table.shape[0] + 1))
         #Calculate exceedance probability and add column to table
-        table.insert(1, "Exc Prob", (table["Rank"] - 1)/(table.shape[0]-1)*100)
+        table.insert(1, "Exc Prob", (table["Rank"]) / (table.shape[0] + 1) * 100) # m/(N+1)
 
-        #Round all table values to 1 decimals for temp, 0 decimals for other
-        if report_type == "temperature":
-            table = table.round(1)
-        else:
-            table = table.round(0)
+        #Round all table values to 1 decimals for temp, 0 decimals for other (moved to below)
+        # if report_type == "temperature":
+        #     table = table.round(1)
+        # else:
+        #     table = table.round(0)
+
 
         #Keep only every 10th row so that only 0, 10, 20, 30, ... 100 summary percents are shown in table
-        table = pd.concat([table.iloc[::10], table.iloc[[-1]]],axis = 0)
+        #table = table.loc[table['Exc Prob'].isin([0,10,20,30,40,50,60,70,80,90,100])]
+        #table = pd.concat([table.iloc[::10], table.iloc[[-1]]],axis = 0)
         #Drop first row so that table starts at 10% exceedance prob
-        table.drop(index=table.index[0], axis=0, inplace=True)
+        # table.drop(index=table.index[0], axis=0, inplace=True)
 
-        exc_tables.append(table)
+        # Get 10%, 20%, 30%, etc. exceedance values by linearly interpolating between the table values for each month
+        table_interp = pd.DataFrame(index = range(10,100, 10))
+        table_interp.index.name = 'Exc Prob'
+        for m_name in table.columns[-12:]:
+            exceedance_values = np.interp(table_interp.index.values, table['Exc Prob'].values, table[m_name].values)
+            table_interp[m_name]= exceedance_values
+
+        #Add the lowest and highest exceedance probability rows
+        table_interp.loc[table.iloc[0]['Exc Prob']] = table.iloc[0][table.columns[-12:]].values
+        table_interp.loc[table.iloc[-1]['Exc Prob']] = table.iloc[-1][table.columns[-12:]].values
+
+        #Sort by exceedance probability.
+        table_interp.sort_index(inplace = True)
+        table_interp.reset_index(drop = False, inplace = True)
+
+        exc_tables.append(table_interp)
 
     #Calculate full simulation period average for each run and format to be added to exceedance table as one row
     stats_dfs = []
@@ -252,6 +269,7 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
     for table_index in range(len(t_dfs)):
         t_dfs[table_index].set_index('WY', inplace = True)
         t_dfs[table_index]["flag"] = wy_flags[use_wytype]
+        exc_probs_i = exc_tables[table_index]["Exc Prob"]
         month_vals = {}
         # Also add full sim period average as a row in exceedance table
         exc_tables[table_index] = pd.concat([exc_tables[table_index], stats_dfs[table_index].iloc[0:1]], ignore_index=True)
@@ -269,14 +287,22 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
             month_vals["Exc Prob"] = year_types[year_type]
 
             exc_tables[table_index] = pd.concat([exc_tables[table_index], pd.DataFrame.from_dict(month_vals)], ignore_index=True)
-        exc_tables[table_index].drop(columns=["Rank", "Exc Prob"], inplace=True)
-        exc_tables[table_index] = exc_tables[table_index].astype(float).round(1)
+
 
         #Create list of desired row labels
-        row_labels = [f"{floor(value)}% Exceedance" for value in exc_probs.values]
+        row_labels = [f"{round(value)}% Exceedance" for value in exc_probs_i.values]
         row_labels.append('Full Simulation Period Average')
         wy_type_labels = [f"{year_types[i]} Years ({wytype_percents.loc[i+1].item():.0f}%)" for i in range(len(year_types))]
         row_labels.extend(wy_type_labels)
+
+        #Remove extra columns
+        exc_tables[table_index].drop(columns=["Exc Prob"], inplace=True)
+
+        #Round table values
+        if report_type == 'temperature':
+            exc_tables[table_index] = exc_tables[table_index].astype(float).round(1)
+        else:
+            exc_tables[table_index] = exc_tables[table_index].astype(float).round(0)
 
         # Add row labels for report tables in first column
         exc_tables[table_index].insert(0, "Statistic", row_labels)
@@ -574,7 +600,10 @@ def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_sty
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
     for fig_index in range(len(fig_dfs)):
         # plot exceedance probability vs monthly EC
-        axs.plot(fig_dfs[fig_index]["exc_prob"], fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index])
+        percentages = [float(prob.replace("%", '')) for prob in fig_dfs[fig_index]["exc_prob"]]
+        axs.plot(percentages, fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index])
+        axs.set_xticks(percentages)
+        axs.set_xticklabels(fig_dfs[fig_index]["exc_prob"])
 
 
         axs.set_ylabel(fig_value)
