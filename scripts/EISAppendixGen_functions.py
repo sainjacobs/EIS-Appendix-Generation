@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 import calendar
 import os
 from time import strptime
+from storage_to_elevation import storage_to_elevation
+from math import floor
+
 
 def get_locations(location_crosswalk_path, fields):
     """
@@ -33,10 +36,67 @@ def get_locations(location_crosswalk_path, fields):
     #Look up each field code's corresponding location title and add to a list
     locations = []
     for field in fields:
-        locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Location (Title)"].values[0])
+        if type(field) ==str:
+            locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Location (Title)"].values[0])
+        elif type(field)==tuple:
+            #If filter_search is provided, then filter the parameter column of the dataframe. This is used to get the elevation figure/table titles, since they're under the same dsspartb as the storage titles.
+            locations.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Location (Title)"].values[0])
 
     return locations
-def parse_dssReader_output(dss_path, runs, report_type, field):
+
+def get_locations_params(location_crosswalk_path, fields):
+    """
+    Gets location names from field codes passed
+
+    Parameters
+    ----------
+    location_crosswalk_path: string
+        Path and file name for xlsx file containing location names and field codes
+    fields: list of strings
+        Names of the fields to be processed
+
+    """
+    #Read in crosswalk as a df
+    crosswalk = pd.read_excel(location_crosswalk_path)
+
+    #Look up each field code's corresponding location title and add to a list
+    locations = []
+    for field in fields:
+        if type(field) ==str:
+            locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Parameter"].values[0])
+        elif type(field)==tuple:
+            #If filter_search is provided, then filter the parameter column of the dataframe. This is used to get the elevation figure/table titles, since they're under the same dsspartb as the storage titles.
+            locations.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Parameter"].values[0])
+
+    return locations
+
+def get_location_wytypes(location_crosswalk_path, fields):
+    """
+    Gets location names from field codes passed
+
+    Parameters
+    ----------
+    location_crosswalk_path: string
+        Path and file name for xlsx file containing location names and field codes
+    fields: list of strings
+        Names of the fields to be processed
+
+    """
+    #Read in crosswalk as a df
+    crosswalk = pd.read_excel(location_crosswalk_path)
+
+    #Look up each field code's corresponding location title and add to a list
+    wytype_list = []
+    for field in fields:
+        if type(field) ==str:
+            wytype_list.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Water Year Type Index"].values[0])
+        elif type(field)==tuple:
+            #If filter_search is provided, then filter the parameter column of the dataframe. This is used to get the elevation figure/table titles, since they're under the same dsspartb as the storage titles.
+            wytype_list.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Water Year Type Index"].values[0])
+
+    return wytype_list
+
+def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevation= False, orig_unit = 'TAF', storage_elevation_fn = ''):
     """
     Reads DSS output from reader for desired runs and field
 
@@ -50,6 +110,11 @@ def parse_dssReader_output(dss_path, runs, report_type, field):
         Type of report being generated. Used to check whether or not it's a temperature report
     field: string
         Current field being processed
+    convert_to_elevation: bool
+        True if you are converting storage to elevation. Need to also set the orig_unit field to the original storage
+        unit
+    orig_unit: str
+        Original storage unit (Currently only have "TAF" implemented). Used for storage to elevation conversion.
 
     """
     #Read DSS Output from specified path for specified field
@@ -71,6 +136,12 @@ def parse_dssReader_output(dss_path, runs, report_type, field):
         dss_output = dss_output[~rows_to_drop]
 
         #dss_output["Scenario"] = scenario
+    #If we want elevation, need to convert from storage
+    if convert_to_elevation:
+        #Convert storage to elevation
+        df_elevations = storage_to_elevation(dss_output, field, storage_elevation_fn, orig_unit = orig_unit)
+        #Replace the dss_output dataframe and continue formatting the tables.
+        dss_output = df_elevations
 
     # Create df for each alternative/run and reformat
     run_dfs = []
@@ -108,7 +179,7 @@ def parse_dssReader_output(dss_path, runs, report_type, field):
 
     return t_dfs
 
-def create_exceedance_tables(t_dfs, wy_flags_path, report_type):
+def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
 
@@ -116,37 +187,62 @@ def create_exceedance_tables(t_dfs, wy_flags_path, report_type):
     ----------
     t_dfs: list of dataframes
         Dataframe outputs from DSSReader that have been transposed to be formatted for table
+    wy_flags_path: str
+        excel file with the water year types
+    use_wytype: str
+        water year type to use.
+        "40-30-30" to use WYT_SAC_
+        "60-20-20" to use WYT_SJR_
+        "TRIN" to use WYT_TRIN_
+
 
     """
     exc_tables = []
+    wy_list = t_dfs[0].WY.tolist()
     for table in t_dfs:
-        table.drop(columns = ["WY"], inplace = True)
-        #Sort df from highest monthly EC to lowest
-        #table = table.sort_values(by=table.columns.tolist(), ascending=False)
+        table = table.drop(columns = ["WY"]).copy()
         table = table.apply(lambda x: x.sort_values(ascending=False).values)
         #Remove first and last rows
         #table.iloc[::-1, ::1]
         #Rank ECs from 1 to 100
         table.insert(0, "Rank", range(1,table.shape[0] + 1))
         #Calculate exceedance probability and add column to table
-        table.insert(1, "Exc Prob", (table["Rank"] - 1)/(table.shape[0]-1)*100)
+        table.insert(1, "Exc Prob", (table["Rank"]) / (table.shape[0] + 1) * 100) # m/(N+1)
 
-        #Round all table values to 1 decimals for temp, 0 decimals for other
-        if report_type == "temperature":
-            table = table.round(1)
-        else:
-            table = table.round(0)
-        #Keep only every 10th row so that only 10, 20, 30, etc. summary percents are shown in table
-        table = table.iloc[::10]
+        #Round all table values to 1 decimals for temp, 0 decimals for other (moved to below)
+        # if report_type == "temperature":
+        #     table = table.round(1)
+        # else:
+        #     table = table.round(0)
+
+
+        #Keep only every 10th row so that only 0, 10, 20, 30, ... 100 summary percents are shown in table
+        #table = table.loc[table['Exc Prob'].isin([0,10,20,30,40,50,60,70,80,90,100])]
+        #table = pd.concat([table.iloc[::10], table.iloc[[-1]]],axis = 0)
         #Drop first row so that table starts at 10% exceedance prob
-        table.drop(index=table.index[0], axis=0, inplace=True)
+        # table.drop(index=table.index[0], axis=0, inplace=True)
 
-        exc_tables.append(table)
+        # Get 10%, 20%, 30%, etc. exceedance values by linearly interpolating between the table values for each month
+        table_interp = pd.DataFrame(index = range(10,100, 10))
+        table_interp.index.name = 'Exc Prob'
+        for m_name in table.columns[-12:]:
+            exceedance_values = np.interp(table_interp.index.values, table['Exc Prob'].values, table[m_name].values)
+            table_interp[m_name]= exceedance_values
+
+        #Add the lowest and highest exceedance probability rows
+        table_interp.loc[table.iloc[0]['Exc Prob']] = table.iloc[0][table.columns[-12:]].values
+        table_interp.loc[table.iloc[-1]['Exc Prob']] = table.iloc[-1][table.columns[-12:]].values
+
+        #Sort by exceedance probability.
+        table_interp.sort_index(inplace = True)
+        table_interp.reset_index(drop = False, inplace = True)
+
+        exc_tables.append(table_interp)
 
     #Calculate full simulation period average for each run and format to be added to exceedance table as one row
     stats_dfs = []
     for run in t_dfs:
-        period_ave = run.mean(axis=0)
+        period_ave = run.drop(columns = ['WY']).mean(axis=0)
         stats_df = pd.DataFrame(period_ave)
         stats_df = stats_df.transpose()
 
@@ -154,22 +250,35 @@ def create_exceedance_tables(t_dfs, wy_flags_path, report_type):
 
         stats_dfs.append(stats_df)
 
-    #Read in year typing flags
-    wy_flags = pd.read_excel(wy_flags_path)
-    year_types = ["Wet", "Above Normal", "Below Normal", "Dry", "Critical"]
+    #Read in water year typing flags
+    wy_flags_all = pd.read_excel(wy_flags_path, index_col = 0)
+    #Subset to only the wytype that is specified by use_wytype
+    wy_flags = wy_flags_all[[use_wytype]]
 
+    if use_wytype == 'TRIN': #Names for Trinity WYType
+        year_types = ["Very Wet", "Wet", "Normal", "Dry", "Critically Dry"]
+    else: #Names for the Sacramento and SJR WYType
+        year_types = ["Wet", "Above Normal", "Below Normal", "Dry", "Critical"]
     # make a copy of exc probabilities to use with figures after deleting from tables df
     exc_probs = exc_tables[0]["Exc Prob"]
 
-    # calculate wet, above normal, dry, etc water years (EC sum for year type/ count of year type)
+    #Create empty dataframe to store percentages for each of the wytypes
+    wytype_percents = pd.DataFrame(index = range(1, 6), columns = ['percentage'])
+
+    # calculate wet, above normal, dry, etc water years (sum for year type/ count of year type)
     for table_index in range(len(t_dfs)):
-        t_dfs[table_index]["flag"] = wy_flags["Year Type"]
+        t_dfs[table_index].set_index('WY', inplace = True)
+        t_dfs[table_index]["flag"] = wy_flags[use_wytype]
+        exc_probs_i = exc_tables[table_index]["Exc Prob"]
         month_vals = {}
         # Also add full sim period average as a row in exceedance table
         exc_tables[table_index] = pd.concat([exc_tables[table_index], stats_dfs[table_index].iloc[0:1]], ignore_index=True)
 
         #Iterate through each type of year (wet, above normal, etc) to compute sums
         for year_type in range(len(year_types)):
+            #Calculate the percentage of total water years that have this wytype
+            d_percent_wytype =  round(wy_flags.loc[wy_flags[use_wytype] == year_type + 1].count().item()/ len(wy_flags)*100,1)
+            wytype_percents.at[year_type+1, 'percentage'] = d_percent_wytype
             for month in t_dfs[table_index].columns[:-1]:
                 #Flags are 1 - 5 to specify which type of year
                 #Calculate mean of months classified as current year type based on flag
@@ -178,15 +287,26 @@ def create_exceedance_tables(t_dfs, wy_flags_path, report_type):
             month_vals["Exc Prob"] = year_types[year_type]
 
             exc_tables[table_index] = pd.concat([exc_tables[table_index], pd.DataFrame.from_dict(month_vals)], ignore_index=True)
-        exc_tables[table_index].drop(columns=["Rank", "Exc Prob"], inplace=True)
-        exc_tables[table_index] = exc_tables[table_index].astype(float).round(1)
+
+
+        #Create list of desired row labels
+        row_labels = [f"{round(value)}% Exceedance" for value in exc_probs_i.values]
+        row_labels.append('Full Simulation Period Average')
+        wy_type_labels = [f"{year_types[i]} Years ({wytype_percents.loc[i+1].item():.0f}%)" for i in range(len(year_types))]
+        row_labels.extend(wy_type_labels)
+
+        #Remove extra columns
+        exc_tables[table_index].drop(columns=["Exc Prob"], inplace=True)
+
+        #Round table values
+        if report_type == 'temperature':
+            exc_tables[table_index] = exc_tables[table_index].astype(float).round(1)
+        else:
+            exc_tables[table_index] = exc_tables[table_index].astype(float).round(0)
+
         # Add row labels for report tables in first column
-        exc_tables[table_index].insert(0, "Statistic",
-                             ["10% Exceedance", "20% Exceedance", "30% Exceedance", "40% Exceedance", "50% Exceedance",
-                              "60% Exceedance", "70% Exceedance", "80% Exceedance", "90% Exceedance",
-                              "Full Simulation Period Average", "Wet Water Years (28%)",
-                              "Above Normal Water Years (14%)", "Below Normal Water Years (18%)",
-                              "Dry Water Years (24%)", "Critical Water Years (16%)"])
+        exc_tables[table_index].insert(0, "Statistic", row_labels)
+
         # Move new header names to first row
         exc_tables[table_index].index = exc_tables[table_index].index + 1  # shifting index
         exc_tables[table_index] = exc_tables[table_index].sort_index()
@@ -480,10 +600,11 @@ def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_sty
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
     for fig_index in range(len(fig_dfs)):
         # plot exceedance probability vs monthly EC
-        axs.plot(fig_dfs[fig_index]["exc_prob"], fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index])
+        percentages = [float(prob.replace("%", '')) for prob in fig_dfs[fig_index]["exc_prob"]]
+        axs.plot(percentages, fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index])
+        axs.set_xticks(percentages)
+        axs.set_xticklabels(fig_dfs[fig_index]["exc_prob"])
 
-        # flip x-axis
-        plt.gca().invert_xaxis()
 
         axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
@@ -499,6 +620,10 @@ def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_sty
 
     # Add month number at beginning so that figures can be easily inserted in CY order to document later
     month_number = str(strptime(month, '%b').tm_mon)
+
+    # flip x-axis
+    axs.invert_xaxis()
+
     # Add leading zeros to month numbers
     if len(month_number) < 2:
         month_number = str(0) + month_number
@@ -550,3 +675,29 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     # Save stat fig to directory
     plt.savefig(stat_directory + "/" + stat[:5] + "_exceedance" + ".png")
     plt.close()
+
+def order_elevation_storage_fields(fields):
+    # List of all the location and elevation fields in the desired order
+    master_list = [("S_TRNTY", 'Storage'),
+                   ("S_TRNTY", 'Elevation'),
+                   ("S_SHSTA", 'Storage'),
+                   ("S_SHSTA", 'Elevation'),
+                   ("S_OROVL", 'Storage'),
+                   ("S_OROVL", 'Elevation'),
+                   ("S_FOLSM", 'Storage'),
+                   ("S_FOLSM", 'Elevation'),
+                   ("SANLUIS_STOR", 'Storage'),
+                   ("SANLUIS_STOR", 'Elevation'),
+                   ("S_SLUIS_CVP", 'Storage'),
+                   ("S_SLUIS_SWP", 'Storage'),
+                   ("S_MELON", "Storage"),
+                   ("S_MELON", "Elevation"),
+                   ("S_MLRTN", "Storage"),
+                   ("S_MLRTN", "Elevation"),
+                    ] #List of all the location and elevation fields in the desired order
+
+    #Subset the list based on the fields.
+    subset_list = [ordered_field for ordered_field in master_list if ordered_field[0] in fields]
+    return subset_list
+
+
