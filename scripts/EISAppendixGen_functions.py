@@ -15,6 +15,7 @@ import calendar
 import os
 from time import strptime
 from storage_to_elevation import storage_to_elevation
+from ec_to_cl import ec_to_cl
 from math import floor
 
 
@@ -96,7 +97,7 @@ def get_location_wytypes(location_crosswalk_path, fields):
 
     return wytype_list
 
-def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevation= False, orig_unit = 'TAF', storage_elevation_fn = ''):
+def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = ''):
     """
     Reads DSS output from reader for desired runs and field
 
@@ -122,8 +123,8 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
 
     dss_output = dss_output[["Month", "Scenario", "WY", field]]
 
-    if report_type == "temperature":
-        #If temperature data is being read, convert daily data to monthly by averaging
+    if report_type in ["temperature"]:
+        #If temperature or DSM2 data is being read, convert daily data to monthly by averaging
         #scenario = dss_output.loc[0, "Scenario"]
         #dss_output.drop(columns = ["Scenario"], inplace = True)
 
@@ -142,6 +143,12 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
         df_elevations = storage_to_elevation(dss_output, field, storage_elevation_fn, orig_unit = orig_unit)
         #Replace the dss_output dataframe and continue formatting the tables.
         dss_output = df_elevations
+    if convert_to_cl:
+        #Convert EC (microsiemens/cm) to mg/L Cl using the regression relationship defined as eqn 2 in
+        #https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
+        df_cl = ec_to_cl(dss_output, field, orig_unit = orig_unit)
+        #Replace the dss_output dataframe and continue formatting the tables.
+        dss_output = df_cl
 
     # Create df for each alternative/run and reformat
     run_dfs = []
@@ -195,49 +202,74 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         "60-20-20" to use WYT_SJR_
         "TRIN" to use WYT_TRIN_
 
+    Returns
+    ----
+    exc_tables: list of pandas DataFrames containing 1,10,20,..., 90,99% exceedance probability data and the WYType summary statistics
+    exc_probs: pandas dataseries of exceedance probabilities that are represented in the exc_tables
+    fig_tables: list of pandas DataFrames of full list of exceedance probabilities and corresponding values. Used for plotting.
+    il_num_years: list of pandas DataFrames that record how many years of data are available for each month
 
     """
     exc_tables = []
+    fig_tables = []
+    il_num_years = []
     wy_list = t_dfs[0].WY.tolist()
     for table in t_dfs:
         table = table.drop(columns = ["WY"]).copy()
         table = table.apply(lambda x: x.sort_values(ascending=False).values)
         #Remove first and last rows
         #table.iloc[::-1, ::1]
-        #Rank ECs from 1 to 100
-        table.insert(0, "Rank", range(1,table.shape[0] + 1))
-        #Calculate exceedance probability and add column to table
-        table.insert(1, "Exc Prob", (table["Rank"]) / (table.shape[0] + 1) * 100) # m/(N+1)
+        #Rank ECs from 1 to 100 - No longer using this, since this produces inaccurate exceedance probabilities if simulation periods don't start Oct and end in Sept.
+        #table.insert(0, "Rank", range(1,table.shape[0] + 1))
+        ##Calculate exceedance probability and add column to table
+        #table.insert(1, "Exc Prob", (table["Rank"]) / (table.shape[0] + 1) * 100) # m/(N+1)
 
-        #Round all table values to 1 decimals for temp, 0 decimals for other (moved to below)
-        # if report_type == "temperature":
-        #     table = table.round(1)
-        # else:
-        #     table = table.round(0)
-
-
-        #Keep only every 10th row so that only 0, 10, 20, 30, ... 100 summary percents are shown in table
-        #table = table.loc[table['Exc Prob'].isin([0,10,20,30,40,50,60,70,80,90,100])]
-        #table = pd.concat([table.iloc[::10], table.iloc[[-1]]],axis = 0)
-        #Drop first row so that table starts at 10% exceedance prob
-        # table.drop(index=table.index[0], axis=0, inplace=True)
-
-        # Get 10%, 20%, 30%, etc. exceedance values by linearly interpolating between the table values for each month
+        # Create dataframe for 10%, 20%, 30%, etc. exceedance values by linearly interpolating between the table values for each month
         table_interp = pd.DataFrame(index = range(10,100, 10))
         table_interp.index.name = 'Exc Prob'
+        #Create dataframe for 1,2,3..., 99% exceedance values by linearly interpolating between the table values for each month. Used for plotting figures.
+        table_all = pd.DataFrame(index = range(1,101,1))
+        table_all.index.name = 'Exc Prob'
+
         for m_name in table.columns[-12:]:
-            exceedance_values = np.interp(table_interp.index.values, table['Exc Prob'].values, table[m_name].values)
+            #Subset the table data column corresponding to this month.
+            df_month = table[[m_name]]
+            #Remove any null entries
+            df_month.dropna(inplace = True)
+            #Calculate the rank for the remaining (non-null) entries
+            df_month['Rank'] = range(1,len(df_month)+1)
+            df_month['Exc Prob'] = df_month["Rank"]/ (df_month.shape[0] + 1) * 100 # m/(N+1)
+
+            #Interpolate to get the 10,20,...,90% exc prob values and place in dataframe.
+            exceedance_values = np.interp(table_interp.index.values, df_month['Exc Prob'].values, df_month[m_name].values)
             table_interp[m_name]= exceedance_values
 
+            # Interpolate to get the 1,2,3,4..., 99% exc prob values and place in dataframe.
+            exceedance_values_all = np.interp(table_all.index.values, df_month['Exc Prob'].values,
+                                              df_month[m_name].values)
+            df_exceedance_values_all = pd.DataFrame(exceedance_values_all, index = table_all.index.values, columns = [m_name])
+            #Only include values for exp probabilities between min(m/(N+1)) and max(m/(N+1))
+            df_exceedance_values_all = df_exceedance_values_all.loc[(df_exceedance_values_all.index>= df_month['Exc Prob'].min()) &(df_exceedance_values_all.index<=df_month['Exc Prob'].max())]
+            table_all[m_name]=  df_exceedance_values_all
+        #Reset index for the table_all
+        table_all.reset_index(inplace = True, drop = False)
+
         #Add the lowest and highest exceedance probability rows
-        table_interp.loc[table.iloc[0]['Exc Prob']] = table.iloc[0][table.columns[-12:]].values
-        table_interp.loc[table.iloc[-1]['Exc Prob']] = table.iloc[-1][table.columns[-12:]].values
+        table_interp.loc[table_all.iloc[0]['Exc Prob']] = table_all.iloc[0][table_all.columns[-12:]].values
+        table_interp.loc[table_all.iloc[-1]['Exc Prob']] = table_all.iloc[-1][table_all.columns[-12:]].values
 
         #Sort by exceedance probability.
         table_interp.sort_index(inplace = True)
         table_interp.reset_index(drop = False, inplace = True)
 
+        #Store the exceedance table
         exc_tables.append(table_interp)
+        #Store the exc probability table for plotting the figures
+        fig_tables.append(table_all.copy(deep = True))
+
+        #Calculate the sample size used to calculate statistics in each month
+        df_num_years = table.count(axis = 0)
+        il_num_years.append(df_num_years)
 
     #Calculate full simulation period average for each run and format to be added to exceedance table as one row
     stats_dfs = []
@@ -300,9 +332,9 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
 
         #Round table values
         if report_type == 'temperature':
-            exc_tables[table_index] = exc_tables[table_index].astype(float).round(1)
+            exc_tables[table_index] = exc_tables[table_index].astype(float)#.round(1)
         else:
-            exc_tables[table_index] = exc_tables[table_index].astype(float).round(0)
+            exc_tables[table_index] = exc_tables[table_index].astype(float)#.round(0)
 
         # Add row labels for report tables in first column
         exc_tables[table_index].insert(0, "Statistic", row_labels)
@@ -311,7 +343,7 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         exc_tables[table_index].index = exc_tables[table_index].index + 1  # shifting index
         exc_tables[table_index] = exc_tables[table_index].sort_index()
 
-    return exc_tables, exc_probs
+    return exc_tables, exc_probs, fig_tables, il_num_years
 
 
 def make_rows_bold(*rows):
@@ -502,8 +534,16 @@ def format_table(doc_table, table_df, doc, report_type):
     # add the rest of the data frame
     for row_index in range(table_df.shape[0]):
         for column_index in range(table_df.shape[1]):
-            doc_table.cell(row_index + 1, column_index).text = str(table_df.values[row_index, column_index])
-
+            if column_index == 0: #Add the exceedance percentage row labels to the table
+                doc_table.cell(row_index + 1, column_index).text = str(table_df.values[row_index, column_index])
+            else:
+                #For all other columns, add the CalSim, temperature, or salinity values in the table. Round values.
+                if report_type == 'temperature':
+                    #For temperature tables, round values to nearest 10th place
+                    doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index],1))
+                else:
+                    #For CalSim or DSM2 tables, round values to the nearest integer
+                    doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index]))
     # Set table top and bottom borders
     borders = OxmlElement('w:tblBorders')
     bottom_border = OxmlElement('w:bottom')
@@ -600,10 +640,12 @@ def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_sty
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
     for fig_index in range(len(fig_dfs)):
         # plot exceedance probability vs monthly EC
-        percentages = [float(prob.replace("%", '')) for prob in fig_dfs[fig_index]["exc_prob"]]
-        axs.plot(percentages, fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index])
+        percentages = range(0,101, 10)
+        percentage_labels = [f"{int(i)}%" for i in percentages]
+
+        axs.plot(fig_dfs[fig_index]['Exc Prob'].values, fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index], label = alts[fig_index])
         axs.set_xticks(percentages)
-        axs.set_xticklabels(fig_dfs[fig_index]["exc_prob"])
+        axs.set_xticklabels(percentage_labels)
 
 
         axs.set_ylabel(fig_value)
@@ -616,7 +658,7 @@ def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_sty
         plt.grid(color='gray', linestyle='--', linewidth=0.8)
 
         # Add a legend
-        plt.legend(labels=alts, loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
 
     # Add month number at beginning so that figures can be easily inserted in CY order to document later
     month_number = str(strptime(month, '%b').tm_mon)
@@ -698,6 +740,14 @@ def order_elevation_storage_fields(fields):
 
     #Subset the list based on the fields.
     subset_list = [ordered_field for ordered_field in master_list if ordered_field[0] in fields]
+
+    #Check to make sure that there's no new field names that aren't in the master list
+    fields_in_master = [ordered_field[0] for ordered_field in master_list]
+    for field in fields:
+        if field not in fields_in_master:
+            #If any field is not included in the master_list, then throw an error telling the user to add it to the master list. Otherwise, it will be excluded from the generated appendix.
+            raise ValueError(f"Need to update master list with new field {field}.")
+
     return subset_list
 
 

@@ -1,3 +1,5 @@
+from IPython.utils.text import date_format
+
 from EISAppendixGen_functions import get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot, change_orientation, order_elevation_storage_fields
 import docx
 from docx.shared import Pt, RGBColor
@@ -9,6 +11,7 @@ import datetime
 from docx_caption_formatter import add_caption_byfield
 from docx.enum.style import WD_STYLE_TYPE
 import shutil
+import numpy as np
 
 if __name__ == "__main__":
 
@@ -17,25 +20,40 @@ if __name__ == "__main__":
     #Fields to use from DSS Reader
 
     # Use for running "elevations" report type, in desired order.
-    # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
+    #fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     #Use for running "flow" report type
-    # fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
-    #         "C_SJR115", "C_STS004", "C_STS059", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120",
-    #         "SP_SAC083_YBP037", "C_FTR059", "C_FTR003", "C_NTOMA", "C_AMR004", "C_LWSTN", "C_CLR011",
-    #           ]
+    fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
+            "C_SJR115", "C_STS004", "C_STS059", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120",
+            "SP_SAC083_YBP037", "C_FTR059", "C_FTR003", "C_NTOMA", "C_AMR004", "C_LWSTN", "C_CLR011",
+              ]
 
-    #Used for running "diversions" report type
-    fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001"]
-    #,"D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
-    #"D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
+    # #Used for running "diversions" report type
+    # fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001"
+    # ,"D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
+    # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
-    #Scenarios to compare
+    # Scenarios to compare
     alts = ["NAA", "Alt1", "Alt2a", 'Alt2b', 'Alt3', 'Alt4', 'Alt6', 'Alt7']
 
-    #Specify whether report is "flow", "elevation', or "diversion"
-    #Note: elevation option also includes storages.
-    report_type = "diversion"
+    #Temperature test
+    #fields = ["BLW CLEAR CREEK"]
+    #alts = ["NAA", "NAA"]
+
+    #Salinity Test
+    #fields = ["SAC_DS_STMBTSL","RSAN007","RSAC075", "RSAC081"] #Test fields for EC DSM2 appendix
+    #fields = ['ROLD024','RSAN007'] #Test fields for Cl DSM2 appendix
+    # fields = ['X2']
+    # alts = ["NAA", "ALT1"]
+    """
+    Specify whether report is "flow", "elevation', or "diversion" (CalSim appendices), "temperature" (HEC-5Q appendix), 
+    "EC", "Cl", "Position" (salinity/DSM2 appendices). 
+    
+    Note 1: "elevation" option also includes storages. "Position" is the X2 position.
+    Note 2: Conversion from microSiemens/cm to mg/L Cl uses equation 2 of https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
+    
+    """
+    report_type = "flow"
 
     #For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
     use_lumped_table_captions = False
@@ -45,14 +63,26 @@ if __name__ == "__main__":
     #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
-    appendix_prefix = " F.2.3" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion.
+    appendix_prefix = " F.2.2" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion.
+                                #F.2.5 is DSM2-EC ; F.2.6 is DSM2-X2 (position); F.2.7 is DSM2 - Chloride; F.2.8 is DSM2
 
     # Path to file with location code crosswalk
-    location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_CalSim.xlsx"
+    if report_type in ["flow", "elevation", "diversion"]:
+        #CalSim related appendices use the calsim crosswalk
+        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_CalSim.xlsx"
+    elif report_type in ["EC", "Cl", "Position"]:
+        #DSM2 related reports use the salinity crosswalk
+        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_salinity.xlsx"
+    elif report_type == 'temperature':
+        #Temperature related appendices use the temperature crosswalk
+        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_Temp.xlsx"
 
     #Path to file with DSSReader output
     #Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF.xlsx"
+    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_temperatureTest.xlsx" #Temperature test input
+    dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_CFS.xlsx" #Trinity LTO flow/diversion input
+    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF.xlsx" #Trinity LTO elevation/storage input
+    # dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_salinity_test.xlsx" #Salinity (sample from Sac LTO used for testing)
 
     #Path to file with WY Typing data
     wy_flags_path = "C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\wy_flags.xlsx"
@@ -64,7 +94,7 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     #Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_temp.docx"
+    doc_name = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_temp2.docx"
     #Name of final word doc
     new_doc = rf"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_final_{report_type}.docx"
 
@@ -74,7 +104,8 @@ if __name__ == "__main__":
     if report_type == 'elevation':
         #If the report_type is elevation, then order the fields in a specific order. (Ex: S_Trinity storages, S_Trinity elevations, etc).
         fields = order_elevation_storage_fields (fields) #Returns a list of tuples with the type of field (elevation or storage). Ex: [("S_TRNTY", 'Storage'), ("S_TRNTY", 'Elevation'), ("S_SHSTA", 'Storage'),  ("S_SHSTA", 'Elevation')]
-
+    elif report_type in ['EC', 'Position', 'Cl']:
+        fields = [(field, report_type) for field in fields]
     locations = get_locations(location_cw_path, fields) #Get location names for each field
     location_params = get_locations_params (location_cw_path, fields) #Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields) #Get the wytype to use with each field.
@@ -139,7 +170,10 @@ if __name__ == "__main__":
             elif location[1] == 'Elevation':
                 # converted to elevation (ft) based on the storage elevation relationship from res_info.table in the CalSim 3 wresl code.
                 dfs = parse_dssReader_output(dss_path, alts, location[0], report_type, convert_to_elevation= True, orig_unit = 'TAF', storage_elevation_fn = storage_elevation_table)
-
+        elif report_type == 'Cl':
+            dfs  = parse_dssReader_output(dss_path, alts, location[0], report_type, convert_to_cl= True, orig_unit = 'uS/cm')
+        elif report_type in ["EC", "Position"]:
+            dfs = parse_dssReader_output(dss_path, alts, location[0], report_type)
         else:
             dfs = parse_dssReader_output(dss_path, alts, location, report_type)
 
@@ -159,6 +193,18 @@ if __name__ == "__main__":
         elif report_type == 'diversion':
             unit = 'cfs'
             table_value = f"Monthly {location_params[field_index]} (cfs)"
+        elif report_type == 'temperature':
+            unit = 'DEG-F'
+            table_value = f"Monthly Temperature (DEG-F)"
+        elif report_type == 'EC':
+            unit = "UMHOS/CM"
+            table_value = f"Monthly EC (UMHOS/CM)"
+        elif report_type == 'Cl':
+            unit = "mg/L"
+            table_value = r"Monthly Cl (mg/L)"
+        elif report_type == 'Position':
+            unit = "KM"
+            table_value = r"Monthly Position (KM)"
         else:
             raise ValueError(f"No report type for {report_type} is available. Needs to be implemented.")
 
@@ -166,7 +212,7 @@ if __name__ == "__main__":
         fig_value = f"Average {location_params[field_index]} ({unit})"
 
         #Create Exceedance Tables from DSS Reader output
-        e_dfs, exc_prob = create_exceedance_tables(dfs, wy_flags_path, locations_wytypes[field_index], report_type)
+        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags_path, locations_wytypes[field_index], report_type)
 
         ##### Use docx package to create a document with formatted table objects and save to Word .docx file ###########
 
@@ -221,13 +267,31 @@ if __name__ == "__main__":
                 #Format table for report
                 format_table(t, table, doc, report_type)
 
+            #Get the number of years of simulation record from the full exceedance probability/values dataframe for each of the naa and the alt you are comparing
+            il_sample_sizes =[]
+            for alt in scenario:
+                #Averaging the number of samples we have for each month
+                # gives you approximation of the full period of record length in years.
+                il_sample_sizes.append(np.mean(il_num_years[alts.index(alt)]).tolist())
+
+            #Determine the period of record footnote to include.
+            #If the NAA and alternative you are comparing to have different sample sizes, use this footnote.
+            if len(np.unique(il_sample_sizes))!=1:
+                s_por_footnote  = f"{scenario[0]} Statistics based on approximately {round(il_sample_sizes[0], 1)}-year simulation period. {scenario[1]} statistics based on approximately {round(il_sample_sizes[1], 1)}-year simulation period."
+            #If the NAA and alternative you are comparing to have the same sample size and it is a whole number of years, then use this footnote.
+            elif il_sample_sizes[0] == int(il_sample_sizes[0]):
+                s_por_footnote = f" Based on the {int(il_sample_sizes[0])}-year simulation period."
+            # If the NAA and alternative you are comparing to have the same sample size and it includes a fraction of a year, then use this footnote.
+            else:
+                s_por_footnote = f" Based on the {round(il_sample_sizes[0],1)}-year simulation period."
+
             # Add footnotes to the final table
             if comp_table_index == (len(comparison_tables) - 1):
                 # Add footnotes at end of table
                 footnote0 = doc.add_paragraph()
                 run = footnote0.add_run("a")
                 run.font.superscript = True
-                run1 = footnote0.add_run(" Based on the 100-year simulation period.")
+                run1 = footnote0.add_run(s_por_footnote)
                 run1.font.size = Pt(9)
                 footnote0.paragraph_format.space_after = Pt(1)
 
@@ -248,25 +312,24 @@ if __name__ == "__main__":
                 footnote2.paragraph_format.space_after = Pt(1)
 
                 #Commented out b/c we are using water years now.
-                # footnote3 = doc.add_paragraph()
-                # run = footnote3.add_run('* Water Year Types results are displayed with calendar year – year type sorting.')
-                # run.font.size = Pt(9)
-                # footnote3.paragraph_format.space_before = Pt(1)
-            # if comparison_index!=0:
-            doc.add_page_break() #Add page break after the a,b,c comparison tables.
+                footnote3 = doc.add_paragraph()
+                run = footnote3.add_run('* Water Year Types results are displayed with water year – year type sorting.')
+                run.font.size = Pt(9)
+                footnote3.paragraph_format.space_before = Pt(1)
+            if comparison_index!=0:
+                doc.add_page_break() #Add page break after the a,b,c comparison tables.
 
         #####Create Monthly EC and full simulation period statistic plots, save locally as images#####
 
-        #Individual Month Plots
-        fig_dfs = copy.deepcopy(e_dfs)
+        #Individual Month Plots tables are in fig_dfs
 
        #Format percent exceedances for labels
         exc_percents = [str(round(x)).split(".")[0] + "%" for x in exc_prob.values]
-        #Remove simulation period statistic rows
-        for fig_index in range(len(fig_dfs)):
-            fig_dfs[fig_index] = fig_dfs[fig_index][:-6]
-            #Add formatted exceedance probability percents back to dfs
-            fig_dfs[fig_index]["exc_prob"] = exc_percents
+        ##Remove simulation period statistic rows
+        # for fig_index in range(len(fig_dfs)):
+        #     fig_dfs[fig_index] = fig_dfs[fig_index][:-6]
+        #     #Add formatted exceedance probability percents back to dfs
+        #     fig_dfs[fig_index]["exc_prob"] = exc_percents
 
         #Can plot up to 8 scenarios, these lines prepare linestyle and color
         line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g"]
@@ -278,7 +341,12 @@ if __name__ == "__main__":
         #Iterate through the dfs and create a figure for each month
         #Save month plots to directory
         month_directory = "month_plots"
-        for month in fig_dfs[0].columns[1:-1]:
+
+        if os.path.exists(month_directory):
+            # If the directory already exists, clear it out to prevent using any old figures by accident from previous field/alternative.
+            shutil.rmtree(month_directory)
+
+        for month in fig_dfs[0].columns[1:]:
             create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
 
         ##Simulation Period Statistic Plots###
@@ -392,11 +460,11 @@ if __name__ == "__main__":
             caption0.paragraph_format.space_after = Pt(1)
 
             # Commented out b/c we are using water years now.
-            # caption1 = doc.add_paragraph()
-            # run = caption1.add_run('*These results are displayed with calendar year - year type sorting.')
-            # run.font.size = Pt(9)
-            # caption1.paragraph_format.space_before = Pt(1)
-            # caption1.paragraph_format.space_after = Pt(1)
+            caption1 = doc.add_paragraph()
+            run = caption1.add_run('*These results are displayed with water year - year type sorting.')
+            run.font.size = Pt(9)
+            caption1.paragraph_format.space_before = Pt(1)
+            caption1.paragraph_format.space_after = Pt(1)
 
             #Add footnotes below figure about climate change scenario
             caption2 = doc.add_paragraph()
