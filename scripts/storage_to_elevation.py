@@ -47,7 +47,7 @@ def storage_to_elevation(df_storage, field, storage_elevation_fn , orig_unit = '
 
     #Check that the CALSIM storages do not fall outside of the storage-elevation table values.
     if da_storage_af.max()> df_table['storage (AF)'].values.max():
-        raise ValueError(f"CALSIM Storage in {field} is greater than max value in storage-elevation tables.")
+        raise ValueError(f"CALSIM Storage {da_storage_af.max()}AF in {field} is greater than max value in storage-elevation tables.")
     elif da_storage_af.min()< df_table['storage (AF)'].values.min():
         raise ValueError(f"CALSIM Storage in {field} is less than min value in storage-elevation tables.")
 

@@ -309,7 +309,7 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         #Iterate through each type of year (wet, above normal, etc) to compute sums
         for year_type in range(len(year_types)):
             #Calculate the percentage of total water years that have this wytype
-            d_percent_wytype =  round(wy_flags.loc[wy_flags[use_wytype] == year_type + 1].count().item()/ len(wy_flags)*100,1)
+            d_percent_wytype =  round(len(t_dfs[table_index].loc[t_dfs[table_index]['flag'] == year_type + 1])/ len(t_dfs[table_index])*100,1)
             wytype_percents.at[year_type+1, 'percentage'] = d_percent_wytype
             for month in t_dfs[table_index].columns[:-1]:
                 #Flags are 1 - 5 to specify which type of year
@@ -324,7 +324,8 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         #Create list of desired row labels
         row_labels = [f"{round(value)}% Exceedance" for value in exc_probs_i.values]
         row_labels.append('Full Simulation Period Average')
-        wy_type_labels = [f"{year_types[i]} Years ({wytype_percents.loc[i+1].item():.0f}%)" for i in range(len(year_types))]
+        wy_type_labels = [f"{year_types[i]} Years ({wytype_percents.loc[i+1].item():.0f}%)" if wytype_percents.loc[i+1].item() == int(wytype_percents.loc[i+1].item())  else
+                          f"{year_types[i]} Years ({wytype_percents.loc[i + 1].item():.1f}%)" for i in range(len(year_types))]
         row_labels.extend(wy_type_labels)
 
         #Remove extra columns
@@ -728,8 +729,8 @@ def order_elevation_storage_fields(fields):
                    ("S_OROVL", 'Elevation'),
                    ("S_FOLSM", 'Storage'),
                    ("S_FOLSM", 'Elevation'),
-                   ("SANLUIS_STOR", 'Storage'),
-                   ("SANLUIS_STOR", 'Elevation'),
+                   ("S_SLUIS", 'Storage'),
+                   ("S_SLUIS", 'Elevation'),
                    ("S_SLUIS_CVP", 'Storage'),
                    ("S_SLUIS_SWP", 'Storage'),
                    ("S_MELON", "Storage"),
