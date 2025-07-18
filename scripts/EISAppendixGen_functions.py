@@ -162,7 +162,7 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
 
         #Add abbrievated month name to df for tables and plotting later
         for index, row in run_df.iterrows():
-            run_df.loc[index, "month_name"] = calendar.month_abbr[row["Month"]]
+            run_df.loc[index, "month_name"] = calendar.month_abbr[int(row["Month"])]
         #Drop unneeded columns
         run_df.drop(columns=["Month", "Scenario"], inplace=True)
         run_dfs.append(run_df)
@@ -615,7 +615,7 @@ def format_table(doc_table, table_df, doc, report_type):
     # Change font size to fit on page better
     change_table_font_size(doc, 8)
 
-def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_styles, line_colors):
+def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors):
     """
     Generates and saves individual month plots
 
@@ -639,12 +639,25 @@ def create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_sty
         os.makedirs(month_directory)
 
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
-    for fig_index in range(len(fig_dfs)):
+    for fig_index in range(len(dfs)):
+        # Dataset for this alt
+        df_alt_data = dfs[fig_index].copy(deep=True)
+
+        # Subset to only the month of interest
+        df_month = df_alt_data[[month]]
+
+        # Now calculate exceedance values using this month's data
+        df_month.sort_values(by=month, inplace=True, ascending=False)
+        df_month.dropna(subset=[month], inplace=True)
+        df_month['Rank'] = range(1, len(df_month) + 1)
+        df_month['Exc Prob'] = df_month["Rank"] / (df_month.shape[0] + 1) * 100  # m/(N+1)
+
         # plot exceedance probability vs monthly EC
-        percentages = range(0,101, 10)
+        percentages = range(0, 101, 10)
         percentage_labels = [f"{int(i)}%" for i in percentages]
 
-        axs.plot(fig_dfs[fig_index]['Exc Prob'].values, fig_dfs[fig_index][month], color=line_colors[fig_index], linestyle=line_styles[fig_index], label = alts[fig_index])
+        axs.plot(df_month['Exc Prob'].values, df_month[month].values, color=line_colors[fig_index],
+                 linestyle=line_styles[fig_index], label=alts[fig_index])
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
 

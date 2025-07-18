@@ -20,22 +20,48 @@ if __name__ == "__main__":
     #Fields to use from DSS Reader
 
     # Use for running "elevations" report type, in desired order.
-    #fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
+    # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
-    #Use for running "flow" report type
-    fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
-            "C_SJR115", "C_STS004", "C_STS059", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120",
-            "SP_SAC083_YBP037", "C_FTR059", "C_FTR003", "C_NTOMA", "C_AMR004", "C_LWSTN", "C_CLR011",
-              ]
+    # #Use for running "flow" report type
+    # fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
+    #         "C_SJR115", "C_STS004", "C_STS059", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120",
+    #         "SP_SAC083_YBP037", "C_FTR059", "C_FTR003", "C_NTOMA", "C_AMR004", "C_LWSTN", "C_CLR011",
+    #           ]
 
     # #Used for running "diversions" report type
     # fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001"
     # ,"D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
     # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
-    # Scenarios to compare
-    alts = ["NAA", "Alt1", "Alt2a", 'Alt2b', 'Alt3', 'Alt4', 'Alt6', 'Alt7']
+    #Temperature
+    # alts = ['NAA', "Action 5"]
+    # fields = [
+    #     "BLW LEWISTON",
+    #     "WHISKEYTOWN",
+    #     "IGO",
+    #     "ABV SACRAMENTO",
+    #     "BLW KESWICK",
+    #     "BLW CLEAR CREEK",
+    #     "BALLS FERRY",
+    #     "JELLYS FERRY",
+    #     "BEND BRIDGE",
+    #     "RED_BLUFF",
+    #     "RED BLUFF DAM",
+    #     "HAMILTON CITY",
+    #     "BLW NIMBUS(HAZEL AVE)",
+    #      "WATT AVE",
+    #      "ABV CONFLUENCE"
+    # ]
 
+    #fields = ['Below Lewiston']
+    alts = ['NAA', 'Alternative 1', 'Alternative 2a', 'Alternative 2b', 'Alternative 3', 'Alternative 4', 'Alternative 6', 'Alternative 7 (Full POR)', 'Alternative 7 (POR w/o June 2017)']
+    fields = ['Below Trinity', 'Above Lewiston', 'Below Lewiston', 'Douglas City',
+      'North Fork Trinity']
+    #alts = ['NAA', 'Alternative 1', 'Alternative 2a', 'Alternative 2b', 'Alternative 3', 'Alternative 4', 'Alternative 6', 'Alternative 7']
+
+    # Scenarios to compare
+    #alts = ["NAA", "Alt1", "Alt2a", 'Alt2b', 'Alt3', 'Alt4', 'Alt6', 'Alt7']
+    #alts = ['NAA', "SACLTO_Alt4"]
     #Temperature test
     #fields = ["BLW CLEAR CREEK"]
     #alts = ["NAA", "NAA"]
@@ -44,7 +70,7 @@ if __name__ == "__main__":
     #fields = ["SAC_DS_STMBTSL","RSAN007","RSAC075", "RSAC081"] #Test fields for EC DSM2 appendix
     #fields = ['ROLD024','RSAN007'] #Test fields for Cl DSM2 appendix
     # fields = ['X2']
-    # alts = ["NAA", "ALT1"]
+    #alts = ["NAA", "ALT1"]
     """
     Specify whether report is "flow", "elevation', or "diversion" (CalSim appendices), "temperature" (HEC-5Q appendix), 
     "EC", "Cl", "Position" (salinity/DSM2 appendices). 
@@ -53,7 +79,7 @@ if __name__ == "__main__":
     Note 2: Conversion from microSiemens/cm to mg/L Cl uses equation 2 of https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
     
     """
-    report_type = "flow"
+    report_type = "temperature"
 
     #For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
     use_lumped_table_captions = False
@@ -63,7 +89,7 @@ if __name__ == "__main__":
     #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
-    appendix_prefix = " F.2.2" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion.
+    appendix_prefix = " F.2.9" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion.
                                 #F.2.5 is DSM2-EC ; F.2.6 is DSM2-X2 (position); F.2.7 is DSM2 - Chloride; F.2.8 is DSM2
 
     # Path to file with location code crosswalk
@@ -80,10 +106,14 @@ if __name__ == "__main__":
     #Path to file with DSSReader output
     #Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
     #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_temperatureTest.xlsx" #Temperature test input
-    dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_CFS.xlsx" #Trinity LTO flow/diversion input
+    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_CFS.xlsx" #Trinity LTO flow/diversion input
     #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF.xlsx" #Trinity LTO elevation/storage input
-    # dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_salinity_test.xlsx" #Salinity (sample from Sac LTO used for testing)
-
+    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_salinity_test.xlsx" #Salinity (sample from Sac LTO used for testing)
+    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF_SacLTOTest.xlsx" #TEST ONLY
+    #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename.xlsx"#Temperature, all alternatives (No action alternative was manually "renamed" to Baseline in excel.
+    #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_alt7_June2017Removed.xlsx"
+    dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_w_and_woJune2017_Alt7.xlsx"
+    # dss_path = r"C:\Users\cyu\sacLTO2021\DSS_contents_CombinedSacAmerican.xlsx" #Action 5 run.
     #Path to file with WY Typing data
     wy_flags_path = "C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\wy_flags.xlsx"
 
@@ -94,9 +124,9 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     #Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_temp2.docx"
+    doc_name = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_temp3.docx"
     #Name of final word doc
-    new_doc = rf"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_final_{report_type}.docx"
+    new_doc = rf"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_final_{report_type}_fixedExceedanceMinMax.docx"
 
 ####END OF USER INPUTS #######
 
@@ -332,8 +362,8 @@ if __name__ == "__main__":
         #     fig_dfs[fig_index]["exc_prob"] = exc_percents
 
         #Can plot up to 8 scenarios, these lines prepare linestyle and color
-        line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g"]
-        line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-."]
+        line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g", 'c']
+        line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"]
 
         # Flip doc to landscape orientation for images
         change_orientation(doc, "landscape")
@@ -347,7 +377,7 @@ if __name__ == "__main__":
             shutil.rmtree(month_directory)
 
         for month in fig_dfs[0].columns[1:]:
-            create_month_plot(fig_dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
+            create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
 
         ##Simulation Period Statistic Plots###
         stat_fig_dfs = copy.deepcopy(e_dfs)
