@@ -1,5 +1,3 @@
-from IPython.utils.text import date_format
-
 from EISAppendixGen_functions import get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot, change_orientation, order_elevation_storage_fields
 import docx
 from docx.shared import Pt, RGBColor
@@ -54,10 +52,8 @@ if __name__ == "__main__":
     # ]
 
     #fields = ['Below Lewiston']
-    alts = ['NAA', 'Alternative 1', 'Alternative 2a', 'Alternative 2b', 'Alternative 3', 'Alternative 4', 'Alternative 6', 'Alternative 7 (Full POR)', 'Alternative 7 (POR w/o June 2017)']
-    fields = ['Below Trinity', 'Above Lewiston', 'Below Lewiston', 'Douglas City',
-      'North Fork Trinity']
-    #alts = ['NAA', 'Alternative 1', 'Alternative 2a', 'Alternative 2b', 'Alternative 3', 'Alternative 4', 'Alternative 6', 'Alternative 7']
+    alts = ['NAA', 'Alternative 1']
+    fields = ['Below Trinity', 'Above Lewiston', 'Below Lewiston', ]
 
     # Scenarios to compare
     #alts = ["NAA", "Alt1", "Alt2a", 'Alt2b', 'Alt3', 'Alt4', 'Alt6', 'Alt7']
@@ -95,38 +91,32 @@ if __name__ == "__main__":
     # Path to file with location code crosswalk
     if report_type in ["flow", "elevation", "diversion"]:
         #CalSim related appendices use the calsim crosswalk
-        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_CalSim.xlsx"
+        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix_gen_clean\inputs\location_code_crosswalk_CalSim.xlsx"
     elif report_type in ["EC", "Cl", "Position"]:
         #DSM2 related reports use the salinity crosswalk
-        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_salinity.xlsx"
+        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix_gen_clean\inputs\location_code_crosswalk_salinity.xlsx"
     elif report_type == 'temperature':
         #Temperature related appendices use the temperature crosswalk
         location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_Temp.xlsx"
 
     #Path to file with DSSReader output
     #Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_temperatureTest.xlsx" #Temperature test input
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_CFS.xlsx" #Trinity LTO flow/diversion input
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF.xlsx" #Trinity LTO elevation/storage input
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_salinity_test.xlsx" #Salinity (sample from Sac LTO used for testing)
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF_SacLTOTest.xlsx" #TEST ONLY
-    #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename.xlsx"#Temperature, all alternatives (No action alternative was manually "renamed" to Baseline in excel.
-    #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_alt7_June2017Removed.xlsx"
-    dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_w_and_woJune2017_Alt7.xlsx"
-    # dss_path = r"C:\Users\cyu\sacLTO2021\DSS_contents_CombinedSacAmerican.xlsx" #Action 5 run.
+    dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_w_and_woJune2017_Alt7.xlsx"  # Test input
+
     #Path to file with WY Typing data
-    wy_flags_path = "C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\wy_flags.xlsx"
+    wy_flags_path = "..\inputs\wy_flags.xlsx"
 
     #Path to storage-elevation table data
-    storage_elevation_table = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\storage_elevation_table.xlsx"
+    storage_elevation_table = r"..\inputs\storage_elevation_table.xlsx"
 
     # Windows command prompt can't save to OneDrive bc of the space in the file path, save locally instead
     # Pass absolute paths to VBS
     #Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_temp3.docx"
+    doc_name = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix_gen_clean\test\appendix_temp.docx"
+
     #Name of final word doc
-    new_doc = rf"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\appendix_final_{report_type}_fixedExceedanceMinMax.docx"
+    new_doc = rf"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix_gen_clean\test\appendix_final_{report_type}.docx"
 
 ####END OF USER INPUTS #######
 
@@ -325,12 +315,14 @@ if __name__ == "__main__":
                 run1.font.size = Pt(9)
                 footnote0.paragraph_format.space_after = Pt(1)
 
+                #Add footnote specifying hydrology
                 footnote1 = doc.add_paragraph()
                 run = footnote1.add_run('* All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
                 run.font.size = Pt(9)
                 footnote1.paragraph_format.space_before = Pt(1)
                 footnote1.paragraph_format.space_after = Pt(1)
 
+                #Add footnote specifying what WY type this field's table uses.
                 footnote2 = doc.add_paragraph()
                 if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:
                     run = footnote2.add_run(
@@ -341,7 +333,7 @@ if __name__ == "__main__":
                 footnote2.paragraph_format.space_before = Pt(1)
                 footnote2.paragraph_format.space_after = Pt(1)
 
-                #Commented out b/c we are using water years now.
+                #Add footnote for water year type sorting method.
                 footnote3 = doc.add_paragraph()
                 run = footnote3.add_run('* Water Year Types results are displayed with water year – year type sorting.')
                 run.font.size = Pt(9)
@@ -464,7 +456,7 @@ if __name__ == "__main__":
         if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:  #For Sac or SJR WYType
             stat_titles = ["Long Term", "Wet Year", "Above Normal Year", "Below Normal Year", "Dry Year", 'Critical Year']
         else: #For Trinity WYType
-            stat_titles = ["Long Term", "Very Wet Year", "Wet Year", "Normal Year", "Dry Year", "Critically Dry Year"]
+            stat_titles = ["Long Term", "Extremely Wet Year", "Wet Year", "Normal Year", "Dry Year", "Critically Dry Year"]
 
         for stat_plot_index, stat_title in enumerate(stat_titles):
             # Center figures in middle of page by adding some new lines above
@@ -489,7 +481,7 @@ if __name__ == "__main__":
             caption0.paragraph_format.space_before = Pt(1)
             caption0.paragraph_format.space_after = Pt(1)
 
-            # Commented out b/c we are using water years now.
+            # Add footnote for what wy type sorting is used.
             caption1 = doc.add_paragraph()
             run = caption1.add_run('*These results are displayed with water year - year type sorting.')
             run.font.size = Pt(9)

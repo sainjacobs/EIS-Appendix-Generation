@@ -12,8 +12,8 @@ Uses output DSS_contents.xlsx file from the DSS Reader
 import os, sys
 import pandas as pd
 
-s_dvfile = r"C:\calsim_gits\calsim_dss_reader\DSS_contents.xlsx"
-s_output = r"C:\calsim_gits\eis-appendix-generation\inputs\wy_flags.xlsx"
+s_dvfile = r"C:\calsim_gits\dss_reader_git\calsim_dss_reader\DSS_contents_wyt.xlsx"
+s_output = r"..\inputs\wy_flags.xlsx"
 
 #Dictionary specifying the dss part b name containing wytype information, the 
 #corresponding name to give to the final dataset column, and the month in which 
