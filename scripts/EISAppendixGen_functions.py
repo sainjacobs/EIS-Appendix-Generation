@@ -17,6 +17,7 @@ from time import strptime
 from storage_to_elevation import storage_to_elevation
 from ec_to_cl import ec_to_cl
 from math import floor
+from datetime import datetime
 
 
 def get_locations(location_crosswalk_path, fields):
@@ -29,6 +30,11 @@ def get_locations(location_crosswalk_path, fields):
         Path and file name for xlsx file containing location names and field codes
     fields: list of strings
         Names of the fields to be processed
+
+    Returns
+    ----------
+    locations : list of str
+        List of the location titles from the crosswalk file given in location_crosswalk_path
 
     """
     #Read in crosswalk as a df
@@ -56,6 +62,11 @@ def get_locations_params(location_crosswalk_path, fields):
     fields: list of strings
         Names of the fields to be processed
 
+    Returns
+    ----------
+    locations: list of str
+        list of the parameter names corresponding to the locations, based on what's in the crosswalk file.
+
     """
     #Read in crosswalk as a df
     crosswalk = pd.read_excel(location_crosswalk_path)
@@ -81,6 +92,11 @@ def get_location_wytypes(location_crosswalk_path, fields):
         Path and file name for xlsx file containing location names and field codes
     fields: list of strings
         Names of the fields to be processed
+
+    Returns
+    ---------
+    wytype_list:  list of str
+        list of water year types corresponding to each location, based on what's in the crosswalk file.
 
     """
     #Read in crosswalk as a df
@@ -116,6 +132,17 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
         unit
     orig_unit: str
         Original storage unit (Currently only have "TAF" implemented). Used for storage to elevation conversion.
+
+    storage_elevation_fn: str
+        Optional. Default is "". Filename of Excel file containing storage-elev relationships for CalSim. (Storage-elev
+        tables taken from lookup/res_info.table in CalSim wresl code.
+
+    :returns
+    t_dfs: list of pandas dataframes
+        List of dataframe containing data for this location. Each dataframe corresponds to a run. Dataframe's has columns
+        for WY, and each month.
+
+        For temperature, daily values will be averaged to monthly.
 
     """
     #Read DSS Output from specified path for specified field
@@ -201,6 +228,8 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         "40-30-30" to use WYT_SAC_
         "60-20-20" to use WYT_SJR_
         "TRIN" to use WYT_TRIN_
+    report_type: str
+        type of report (Calsim, temperature, etc)
 
     Returns
     ----
@@ -288,7 +317,7 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
     wy_flags = wy_flags_all[[use_wytype]]
 
     if use_wytype == 'TRIN': #Names for Trinity WYType
-        year_types = ["Very Wet", "Wet", "Normal", "Dry", "Critically Dry"]
+        year_types = ["Extremely Wet", "Wet", "Normal", "Dry", "Critically Dry"]
     else: #Names for the Sacramento and SJR WYType
         year_types = ["Wet", "Above Normal", "Below Normal", "Dry", "Critical"]
     # make a copy of exc probabilities to use with figures after deleting from tables df
@@ -621,8 +650,10 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
 
     Parameters
     ----------
-    fig_dfs: list of dataframes
-        Dataframes with exceedance values by month
+    dfs: list of dataframes
+        List of dataframes with monthly values as one of the columns
+    fig_value: str
+        y-axis label
     month: string
         Current month to be evaluated
     month_directory: string
@@ -633,6 +664,11 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         Styles for lines on plots
     line_colors: list of strings
         Colors for lines on plots
+
+    Returns
+    --------
+    None
+
     """
     # Check for/create directory to store monthly exceedance plots
     if not os.path.exists(month_directory):
@@ -695,6 +731,8 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     ----------
     stat_fig_dfs: list of dataframes
         Dataframes with average values by year type
+    fig_value: str
+        plot ylabel
     stat: string
         Current type of year to be evaluated
     stat_directory: string
@@ -705,6 +743,9 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         Styles for lines on plots
     line_colors: list of strings
         Colors for lines on plots
+    Returns
+    ----------
+    None
     """
     if not os.path.exists(stat_directory):
         os.makedirs(stat_directory)
@@ -733,6 +774,20 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     plt.close()
 
 def order_elevation_storage_fields(fields):
+    """
+    Generates list of tuples where each tuple is (input field, storage or elevation), based on the fields provided.
+    This is used to preprocess the fields for the storage and elevation appendix, since some fields have both storage
+    and elevation, while others just have storage (Ex: S_SLUIS_CVP).
+
+    Note that this function will check for whether the field is in the list or not. If it isn't it'll raise an error
+    telling the user they need to update the master list.
+
+    Parameters
+    ----------
+    fields: list of str
+        List of the fields being included in this appendix. This function is only intended to take reservoir fields as
+        inputs.
+    """
     # List of all the location and elevation fields in the desired order
     master_list = [("S_TRNTY", 'Storage'),
                    ("S_TRNTY", 'Elevation'),
