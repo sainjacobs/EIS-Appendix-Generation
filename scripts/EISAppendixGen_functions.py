@@ -97,6 +97,88 @@ def get_location_wytypes(location_crosswalk_path, fields):
 
     return wytype_list
 
+def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
+
+    # DSS data
+    df_inputs = pd.read_excel(s_inputs)
+
+    # replace 'Baseline' with 'NAA'
+    df_inputs.replace({'Baseline': 'NAA'}, inplace=True)
+
+    # Formulas for calculated fields
+    df_formulas = pd.read_excel(s_formulas, sheet_name='annual')
+
+    # Will hold the outputs
+    df_output = pd.DataFrame(index=pd.MultiIndex.from_product([df_inputs['Scenario'].unique(), df_inputs['Year'].unique()]))
+    for row_index, row in df_formulas.iterrows():
+        s_formula = row['Formula']
+        sl_add_fields = [field.strip() for field in s_formula.split(' + ')]
+        s_stat = 'sum' if row['Statistic'] == 'Sum' else 'mean'
+        if row['Resolution'] == 'Annual':
+            if row['Annual_ Month_ Range'] == 'MarFeb':
+                df_output.loc[:, row['Title']] = df_inputs.groupby(['Scenario', 'CY'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
+            elif row['Annual_ Month_ Range'] == 'JanDec':
+                df_output.loc[:, row['Title']] = df_inputs.groupby(['Scenario', 'Year'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
+            elif row['Annual_ Month_ Range'] == 'OctSep':
+                df_output.loc[:, row['Title']] = df_inputs.groupby(['Scenario', 'WY'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
+        elif row['Resolution'] == 'SingleMonth':
+            i_month = list(calendar.month_abbr).index(row['Annual_ Month_ Range'])
+            df_output.loc[:, row['Title']] = df_inputs[df_inputs['Month'] == i_month].groupby(['Scenario', 'Year'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
+
+    df_final_formulas = pd.read_excel(s_formulas, sheet_name='final', index_col=[0, 1])
+
+    df_final = pd.DataFrame(index=df_output.index, columns=df_final_formulas.index)
+
+    for row_index, row in df_final_formulas.iterrows():
+
+        # Pull out description and units
+        s_description = row['Description']
+        s_units = row['Units']
+
+        # remove description and units
+        row = row.iloc[2:]
+
+        # Fields to add up
+        ls_fields = row[~row.isna()].values
+        if len(ls_fields) == 0:
+            # add in description and units
+            df_final.loc['Description', row_index] = s_description
+            df_final.loc['Units', row_index] = s_units
+            continue
+
+        # add them up and insert into final data frame
+        df_final[row_index] = df_output[ls_fields].sum(axis=1)
+
+        # add in description and units
+        df_final.loc['Description', row_index] = s_description
+        df_final.loc['Units', row_index] = s_units
+
+    df_temp = df_final.loc[['Description', 'Units'], :]
+    df_final[('Total For All Regions', 'Total Supplies')] = df_final[['Sacramento River Hydrologic Region', 'San Joaquin River Hydrologic Region (not including Friant-Kern and Madera Canal water users)',
+                                                                      'San Francisco Bay Hydrologic Region', 'Central Coast Hydrologic Region', 'Tulare Lake Hydrologic Region (not including Friant-Kern Canal water users)',
+                                                                      'South Lahontan Hydrologic Region', 'South Coast Hydrologic Region']].sum(axis=1)
+
+    df_final[('North of Delta', 'SWP Ag')] = df_final[('North of Delta', 'SWP Ag')].fillna(0)
+    df_final[('Total CVP North of Delta', 'Total CVP Ag and M&I NOD')] = df_final[[('North of Delta', 'CVP Ag'), ('North of Delta', 'CVP M&I')]].sum(axis=1)
+    df_final[('Total SWP North of Delta', 'Total SWP Ag and M&I NOD')] = df_final[[('North of Delta', 'SWP Ag'), ('North of Delta', 'SWP M&I')]].sum(axis=1)
+    df_final[('Total North of Delta', 'Total North of Delta Ag and M&I Deliveries')] = df_final[[('Total CVP North of Delta', 'Total CVP Ag and M&I NOD'), ('Total SWP North of Delta', 'Total SWP Ag and M&I NOD')]].sum(axis=1)
+    df_final[('Total CVP South of Delta', 'Total CVP Ag and M&I SOD')] = df_final[[('South of Delta', 'CVP Ag'), ('South of Delta', 'CVP M&I')]].sum(axis=1)
+    df_final[('Total SWP South of Delta', 'Total SWP Ag and M&I SOD')] = df_final[[('South of Delta', 'SWP Ag'), ('South of Delta', 'SWP M&I')]].sum(axis=1)
+    df_final[('Total South of Delta', 'Total South of Delta Ag and M&I Deliveries')] = df_final[[('Total CVP South of Delta', 'Total CVP Ag and M&I SOD'), ('Total SWP South of Delta', 'Total SWP Ag and M&I SOD')]].sum(axis=1)
+
+    df_final.loc[['Description', 'Units'], :] = df_temp
+    # add in long term average and dry and critical average
+    # the WYTs for each year
+    wy_flags_all = pd.read_excel(s_wy_flags_path, index_col=0)
+    for scenario in df_final.index.get_level_values(0).unique():
+        if scenario in ['Description', 'Units']:
+            continue
+        df_final.loc[(scenario, 'Long Term'), :] = df_final.loc[scenario, :].mean()
+        li_dry_crit_years = wy_flags_all[wy_flags_all['40-30-30'].isin([4, 5])].index
+        df_final.loc[(scenario, 'Dry and Critical'), :] = df_final.loc[scenario, :].loc[li_dry_crit_years, :].mean()
+
+    return df_final
+
 def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = ''):
     """
     Reads DSS output from reader for desired runs and field
@@ -410,6 +492,13 @@ def set_cell_border(cell: _Cell, **kwargs):
                 if key in edge_data:
                     element.set(qn('w:{}'.format(key)), str(edge_data[key]))
 
+def set_cell_color(cell, color):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    shading = OxmlElement('w:shd')
+    shading.set(qn('w:fill'), color)
+    tcPr.append(shading)
+
 
 def change_table_font_size(document, font_size):
     """
@@ -614,6 +703,194 @@ def format_table(doc_table, table_df, doc, report_type):
 
     # Change font size to fit on page better
     change_table_font_size(doc, 8)
+
+
+def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
+    """
+    Creates table for water supply data
+
+    Parameters
+    ----------
+    doc_table: docx table object
+        Table to be formatted for report
+    df_table: dataframe
+        Dataframe containing data to go into report table
+    doc: docx object
+        Docx object containing table to be formatted
+    comparison: list
+        List of the comparison names
+    il_page_breaks: list
+        Rows that need a page break header
+
+    Returns
+    -------
+    none
+    """
+
+    # set consistent borders over whole table
+    for row in doc_table.rows:
+        for cell in row.cells:
+            set_cell_border(cell, top={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                            bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                            start={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                            end={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
+            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        # Decrease row spacing for table
+        row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+        row.height = Inches(0.25)
+
+    # Create the Header Row
+    doc_table.cell(0, 0).merge(doc_table.cell(0, 3))
+    doc_table.cell(0, 0).text = 'Water Supply Reliability'
+    doc_table.cell(0, 4).text = comparison[1]
+    doc_table.cell(0, 5).text = comparison[0]
+    doc_table.cell(0, 6).text = comparison[1] + ' minus ' + comparison[0]
+    doc_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.AUTO
+
+    # Make headers bold
+    make_rows_bold(doc_table.rows[0])
+
+    curr_row = 1
+
+    # Loops through each section and subsetion and add into table
+    for section_name in df_table.columns.get_level_values(0).unique():
+
+        # if we hit a page break, recreate the header
+        if curr_row in il_page_breaks:
+
+            # add row to bottom and format it
+            row = doc_table.add_row()
+            for cell in row.cells:
+                set_cell_border(cell, top={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                                bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                                start={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                                end={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
+                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+            # Decrease row spacing for table
+            row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+            row.height = Inches(0.25)
+
+            # Create the Header Row
+            doc_table.cell(curr_row, 0).merge(doc_table.cell(curr_row, 3))
+            doc_table.cell(curr_row, 0).text = 'Water Supply Reliability'
+            doc_table.cell(curr_row, 4).text = comparison[1]
+            doc_table.cell(curr_row, 5).text = comparison[0]
+            doc_table.cell(curr_row, 6).text = comparison[1] + ' minus ' + comparison[0]
+            doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.AUTO
+
+            # Make headers bold
+            make_rows_bold(doc_table.rows[curr_row])
+            curr_row += 1
+
+        # Create the section
+        doc_table.cell(curr_row, 0).merge(doc_table.cell(curr_row, 6))
+        doc_table.cell(curr_row, 0).text = section_name.upper()
+
+        # Make headers bold
+        make_rows_bold(doc_table.rows[curr_row])
+
+        # Make the background grey
+        set_cell_color(doc_table.cell(curr_row, 0), "#E8E8E8")
+
+        curr_row += 1
+
+        # go through the subsections
+        for sub_section in df_table[section_name].columns:
+
+            # if we hit a page break, recreate the header
+            if curr_row in il_page_breaks:
+                row = doc_table.add_row()
+                for cell in row.cells:
+                    set_cell_border(cell, top={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                                    bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                                    start={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"},
+                                    end={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+                # Decrease row spacing for table
+                row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+                row.height = Inches(0.25)
+
+                # Create the Header Row
+                doc_table.cell(curr_row, 0).merge(doc_table.cell(curr_row, 3))
+                doc_table.cell(curr_row, 0).text = 'Water Supply Reliability'
+                doc_table.cell(curr_row, 4).text = comparison[1]
+                doc_table.cell(curr_row, 5).text = comparison[0]
+                doc_table.cell(curr_row, 6).text = comparison[1] + ' minus ' + comparison[0]
+                doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.AUTO
+
+                # Make headers bold
+                make_rows_bold(doc_table.rows[curr_row])
+                curr_row += 1
+
+            # add the name of the subsection
+            doc_table.cell(curr_row, 0).merge(doc_table.cell(curr_row + 1, 0))
+            doc_table.cell(curr_row, 0).text = sub_section
+
+            # add description
+            doc_table.cell(curr_row, 1).merge(doc_table.cell(curr_row + 1, 1))
+            doc_table.cell(curr_row, 1).text = df_table.loc['Description', (section_name, sub_section)]
+
+            # Add units
+            doc_table.cell(curr_row, 2).merge(doc_table.cell(curr_row+1, 2))
+            doc_table.cell(curr_row, 2).text = df_table.loc['Units', (section_name, sub_section)]
+
+            # Add long term numbers
+            doc_table.cell(curr_row, 3).text = 'Long Term'
+            doc_table.cell(curr_row, 4).text = str(round(df_table.loc[(comparison[1], 'Long Term'), (section_name, sub_section)]))
+            doc_table.cell(curr_row, 5).text = str(round(df_table.loc[(comparison[0], 'Long Term'), (section_name, sub_section)]))
+            doc_table.cell(curr_row, 6).text = str(round(df_table.loc[(comparison[1], 'Long Term'), (section_name, sub_section)]- df_table.loc[(comparison[0], 'Long Term'), (section_name, sub_section)]))
+
+            curr_row += 1
+            # add dry and crit numbers
+            doc_table.cell(curr_row, 3).text = 'Dry and Critical'
+            doc_table.cell(curr_row, 4).text = str(round(df_table.loc[(comparison[1], 'Dry and Critical'), (section_name, sub_section)]))
+            doc_table.cell(curr_row, 5).text = str(round(df_table.loc[(comparison[0], 'Dry and Critical'), (section_name, sub_section)]))
+            doc_table.cell(curr_row, 6).text = str(
+                round(df_table.loc[(comparison[1], 'Dry and Critical'), (section_name, sub_section)] - df_table.loc[(comparison[0], 'Long Term'), (section_name, sub_section)]))
+
+            curr_row += 1
+
+    # Formatting for table
+    borders = OxmlElement('w:tblBorders')
+    bottom_border = OxmlElement('w:bottom')
+    bottom_border.set(qn('w:val'), 'single')
+    bottom_border.set(qn('w:sz'), '4')
+    borders.append(bottom_border)
+    top_border = OxmlElement('w:top')
+    top_border.set(qn('w:val'), 'single')
+    top_border.set(qn('w:sz'), '4')
+    borders.append(top_border)
+
+    doc_table._tbl.tblPr.append(borders)
+
+    # Add commas to values in table
+    add_commas_to_table(doc)
+
+    # Adjust the width of the columns
+    for cell in doc_table.columns[0].cells:
+        cell.width = Inches(1.5)
+    for cell in doc_table.columns[1].cells:
+        cell.width = Inches(3.25)
+    for cell in doc_table.columns[2].cells:
+        cell.width = Inches(.75)
+    for cell in doc_table.columns[3].cells:
+        cell.width = Inches(1.25)
+    for cell in doc_table.columns[4].cells:
+        cell.width = Inches(0.75)
+    for cell in doc_table.columns[5].cells:
+        cell.width = Inches(0.75)
+    for cell in doc_table.columns[6].cells:
+        cell.width = Inches(0.75)
+
+    # Change font size to fit on page better
+    change_table_font_size(doc, 10)
+
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors):
     """
