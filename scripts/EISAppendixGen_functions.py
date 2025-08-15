@@ -17,7 +17,8 @@ from time import strptime
 from storage_to_elevation import storage_to_elevation
 from ec_to_cl import ec_to_cl
 from math import floor
-
+from spire.doc import *
+from spire.doc.common import *
 
 def get_locations(location_crosswalk_path, fields):
     """
@@ -98,6 +99,24 @@ def get_location_wytypes(location_crosswalk_path, fields):
     return wytype_list
 
 def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
+    """
+    Reads in data and calculated the specific categories for the water supply appendix
+    Parameters
+    ----------
+    s_inputs: str
+        Path for DSS inputs
+    s_formulas: str
+        Path for the excel sheet with all the formulas
+    s_wy_flags_path: path
+        Path to the WYTs
+
+    Returns
+    -------
+    df_final: dataframe
+        Data for the tables
+    df_exceedances: dataframe
+        Dataframe with the exceedances
+    """
 
     # DSS data
     df_inputs = pd.read_excel(s_inputs)
@@ -110,6 +129,8 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
 
     # Will hold the outputs
     df_output = pd.DataFrame(index=pd.MultiIndex.from_product([df_inputs['Scenario'].unique(), df_inputs['Year'].unique()]))
+
+    # Go through each sub field and calculate it
     for row_index, row in df_formulas.iterrows():
         s_formula = row['Formula']
         sl_add_fields = [field.strip() for field in s_formula.split(' + ')]
@@ -125,10 +146,16 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
             i_month = list(calendar.month_abbr).index(row['Annual_ Month_ Range'])
             df_output.loc[:, row['Title']] = df_inputs[df_inputs['Month'] == i_month].groupby(['Scenario', 'Year'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
 
+    # drop these partial years
+    df_output.drop(index=[1921, 2021], level=1, inplace=True)
+
+    # formulas for the final categories
     df_final_formulas = pd.read_excel(s_formulas, sheet_name='final', index_col=[0, 1])
 
+    # data to hold the table data
     df_final = pd.DataFrame(index=df_output.index, columns=df_final_formulas.index)
 
+    # go through each final formula and calculate it
     for row_index, row in df_final_formulas.iterrows():
 
         # Pull out description and units
@@ -153,31 +180,69 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
         df_final.loc['Description', row_index] = s_description
         df_final.loc['Units', row_index] = s_units
 
+    # save the descriptions and fields
     df_temp = df_final.loc[['Description', 'Units'], :]
+
+    # calculate the fields that are not in the formulas
     df_final[('Total For All Regions', 'Total Supplies')] = df_final[['Sacramento River Hydrologic Region', 'San Joaquin River Hydrologic Region (not including Friant-Kern and Madera Canal water users)',
                                                                       'San Francisco Bay Hydrologic Region', 'Central Coast Hydrologic Region', 'Tulare Lake Hydrologic Region (not including Friant-Kern Canal water users)',
                                                                       'South Lahontan Hydrologic Region', 'South Coast Hydrologic Region']].sum(axis=1)
 
     df_final[('North of Delta', 'SWP Ag')] = df_final[('North of Delta', 'SWP Ag')].fillna(0)
-    df_final[('Total CVP North of Delta', 'Total CVP Ag and M&I NOD')] = df_final[[('North of Delta', 'CVP Ag'), ('North of Delta', 'CVP M&I')]].sum(axis=1)
-    df_final[('Total SWP North of Delta', 'Total SWP Ag and M&I NOD')] = df_final[[('North of Delta', 'SWP Ag'), ('North of Delta', 'SWP M&I')]].sum(axis=1)
-    df_final[('Total North of Delta', 'Total North of Delta Ag and M&I Deliveries')] = df_final[[('Total CVP North of Delta', 'Total CVP Ag and M&I NOD'), ('Total SWP North of Delta', 'Total SWP Ag and M&I NOD')]].sum(axis=1)
-    df_final[('Total CVP South of Delta', 'Total CVP Ag and M&I SOD')] = df_final[[('South of Delta', 'CVP Ag'), ('South of Delta', 'CVP M&I')]].sum(axis=1)
-    df_final[('Total SWP South of Delta', 'Total SWP Ag and M&I SOD')] = df_final[[('South of Delta', 'SWP Ag'), ('South of Delta', 'SWP M&I')]].sum(axis=1)
-    df_final[('Total South of Delta', 'Total South of Delta Ag and M&I Deliveries')] = df_final[[('Total CVP South of Delta', 'Total CVP Ag and M&I SOD'), ('Total SWP South of Delta', 'Total SWP Ag and M&I SOD')]].sum(axis=1)
+    df_final[('Total CVP North of Delta', 'Total CVP Ag and M&I')] = df_final[[('North of Delta', 'CVP Ag'), ('North of Delta', 'CVP M&I')]].sum(axis=1)
+    df_final[('Total SWP North of Delta', 'Total SWP Ag and M&I')] = df_final[[('North of Delta', 'SWP Ag'), ('North of Delta', 'SWP M&I')]].sum(axis=1)
+    df_final[('Total North of Delta', 'Total Ag and M&I Deliveries')] = df_final[[('Total CVP North of Delta', 'Total CVP Ag and M&I'), ('Total SWP North of Delta', 'Total SWP Ag and M&I')]].sum(axis=1)
+    df_final[('Total CVP South of Delta', 'Total CVP Ag and M&I')] = df_final[[('South of Delta', 'CVP Ag'), ('South of Delta', 'CVP M&I')]].sum(axis=1)
+    df_final[('Total SWP South of Delta', 'Total SWP Ag and M&I')] = df_final[[('South of Delta', 'SWP Ag'), ('South of Delta', 'SWP M&I')]].sum(axis=1)
+    df_final[('Total South of Delta', 'Total Ag and M&I Deliveries')] = df_final[[('Total CVP South of Delta', 'Total CVP Ag and M&I'), ('Total SWP South of Delta', 'Total SWP Ag and M&I')]].sum(axis=1)
 
+    # replace the descriptions and units
     df_final.loc[['Description', 'Units'], :] = df_temp
-    # add in long term average and dry and critical average
+
     # the WYTs for each year
     wy_flags_all = pd.read_excel(s_wy_flags_path, index_col=0)
+
+    # add in long term average and dry and critical average
     for scenario in df_final.index.get_level_values(0).unique():
         if scenario in ['Description', 'Units']:
             continue
+
+        # Long term average
         df_final.loc[(scenario, 'Long Term'), :] = df_final.loc[scenario, :].mean()
         li_dry_crit_years = wy_flags_all[wy_flags_all['40-30-30'].isin([4, 5])].index
+        if 2021 in li_dry_crit_years:
+            li_dry_crit_years = li_dry_crit_years.drop(2021)
+
+            # dry and crit years
         df_final.loc[(scenario, 'Dry and Critical'), :] = df_final.loc[scenario, :].loc[li_dry_crit_years, :].mean()
 
-    return df_final
+    # read in exceedance plot formulas
+    df_exceedance_formulas = pd.read_excel(s_formulas, sheet_name='exceedance', index_col=0)
+
+    df_exceedances = pd.DataFrame(index=pd.MultiIndex.from_product([df_inputs['Scenario'].unique(), df_inputs['Year'].unique()]), columns=df_exceedance_formulas.index)
+
+    # calculate each exceedance field
+    for row_index, row in df_exceedance_formulas.iterrows():
+
+        # fields to add up
+        ls_fields = row[~row.isna()].values
+
+        # add them up and insert into final data frame
+        df_exceedances[row_index] = df_output[ls_fields].sum(axis=1)
+
+    # sort and calculate exceedance probabilities
+    lf_probabilities = np.array(range(1, len(df_exceedances.index.levels[1]) + 1)) / (len(df_exceedances.index.levels[1]) + 1)
+
+    for scenario in df_exceedances.index.get_level_values(0).unique():
+        df_exceedances.loc[scenario, 'Probability'] = list(reversed(lf_probabilities))
+        for column in df_exceedances:
+            df_exceedances.loc[scenario, column] = df_exceedances.loc[scenario, column].sort_values(ignore_index=True).values
+
+    # Set probabilities to be indecies w scenario names
+    df_exceedances.set_index([df_exceedances.index.get_level_values(0), 'Probability'], inplace=True)
+
+    return df_final, df_exceedances
+
 
 def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = ''):
     """
@@ -747,7 +812,8 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     doc_table.cell(0, 4).text = comparison[1]
     doc_table.cell(0, 5).text = comparison[0]
     doc_table.cell(0, 6).text = comparison[1] + ' minus ' + comparison[0]
-    doc_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.AUTO
+    doc_table.rows[0].height = Inches(0.65)
+    doc_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
 
     # Make headers bold
     make_rows_bold(doc_table.rows[0])
@@ -780,7 +846,8 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
             doc_table.cell(curr_row, 4).text = comparison[1]
             doc_table.cell(curr_row, 5).text = comparison[0]
             doc_table.cell(curr_row, 6).text = comparison[1] + ' minus ' + comparison[0]
-            doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.AUTO
+            doc_table.rows[curr_row].height = Inches(0.65)
+            doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
 
             # Make headers bold
             make_rows_bold(doc_table.rows[curr_row])
@@ -892,7 +959,7 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     change_table_font_size(doc, 10)
 
 
-def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors):
+def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors, report_type=''):
     """
     Generates and saves individual month plots
 
@@ -910,12 +977,19 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         Styles for lines on plots
     line_colors: list of strings
         Colors for lines on plots
+    report_type: str
+        Type of report, only really matters if its water supply
     """
     # Check for/create directory to store monthly exceedance plots
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
 
-    fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    # define size and borders
+    if report_type == 'water supply':
+        fig, axs = plt.subplots(figsize=(9, 5.5), linewidth=1, edgecolor="black")
+    else:
+        fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+
     for fig_index in range(len(dfs)):
         # Dataset for this alt
         df_alt_data = dfs[fig_index].copy(deep=True)
@@ -951,17 +1025,22 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         # Add a legend
         plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
 
-    # Add month number at beginning so that figures can be easily inserted in CY order to document later
-    month_number = str(strptime(month, '%b').tm_mon)
+    if report_type != 'water supply':
+        # Add month number at beginning so that figures can be easily inserted in CY order to document later
+        month_number = str(strptime(month, '%b').tm_mon)
+        # Add leading zeros to month numbers
+        if len(month_number) < 2:
+            month_number = str(0) + month_number
 
     # flip x-axis
     axs.invert_xaxis()
 
-    # Add leading zeros to month numbers
-    if len(month_number) < 2:
-        month_number = str(0) + month_number
-    # Save figure to month directory
-    plt.savefig(month_directory + "/" + month_number + "_" + month + "_monthly_exceedance" + ".png")
+    if report_type == 'water supply':
+        # Save figure to directory
+        plt.savefig(month_directory + "/" + month + ".png")
+    else:
+        # Save figure to month directory
+        plt.savefig(month_directory + "/" + month_number + "_" + month + "_monthly_exceedance" + ".png")
     plt.close()
 
 def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles, line_colors):
@@ -1040,5 +1119,3 @@ def order_elevation_storage_fields(fields):
             raise ValueError(f"Need to update master list with new field {field}.")
 
     return subset_list
-
-

@@ -1,6 +1,7 @@
 # from IPython.utils.text import date_format
 
-from EISAppendixGen_functions import get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot, change_orientation, order_elevation_storage_fields, calculate_supply_fields, format_table_supply
+from EISAppendixGen_functions import (get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot,
+                                      change_orientation, order_elevation_storage_fields, calculate_supply_fields, format_table_supply)
 import docx
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -8,7 +9,7 @@ import subprocess
 import copy
 import os
 import datetime
-from docx_caption_formatter import add_caption_byfield
+from docx_caption_formatter import add_caption_byfield, add_caption_water_supply
 from docx.enum.style import WD_STYLE_TYPE
 import shutil
 import numpy as np
@@ -53,8 +54,8 @@ if __name__ == "__main__":
     #      "ABV CONFLUENCE"
     # ]
 
-    #fields = ['Below Lewiston']
-    alts = ['NAA', 'Alternative 2 v1']
+    # Water supply fields, order doesn't matter
+    alts = ['NAA', 'Alt 2 v1', 'Action 5']
     fields = ['D_SBP028_17S_PR', 'D_JBC002_17N_PR',
        'D_CRK005_17N_NR', 'D_SAC294_03_PA', 'D_CAA143_90_PA2',
        'D_WTPCSD_02_PA', 'D_DMC034_71_PA2', 'D_XCC025_72_PA',
@@ -162,7 +163,7 @@ if __name__ == "__main__":
     # fields = ['X2']
     #alts = ["NAA", "ALT1"]
     """
-    Specify whether report is "flow", "elevation', or "diversion" (CalSim appendices), "temperature" (HEC-5Q appendix), 
+    Specify whether report is "flow", "elevation', "diversion", or "water supply" (CalSim appendices), "temperature" (HEC-5Q appendix), 
     "EC", "Cl", "Position" (salinity/DSM2 appendices). 
     
     Note 1: "elevation" option also includes storages. "Position" is the X2 position.
@@ -196,6 +197,7 @@ if __name__ == "__main__":
     s_supply_formulas = r"..\inputs\water_supply_formulas.xlsx"
 
     #Path to file with DSSReader output
+    # for water supply, must be the _TAF output
     #Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
     #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_temperatureTest.xlsx" #Temperature test input
     #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_CFS.xlsx" #Trinity LTO flow/diversion input
@@ -204,7 +206,7 @@ if __name__ == "__main__":
     #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF_SacLTOTest.xlsx" #TEST ONLY
     #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename.xlsx"#Temperature, all alternatives (No action alternative was manually "renamed" to Baseline in excel.
     #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_alt7_June2017Removed.xlsx"
-    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents.xlsx"
+    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents_TAF.xlsx"
     # dss_path = r"C:\Users\cyu\sacLTO2021\DSS_contents_CombinedSacAmerican.xlsx" #Action 5 run.
     #Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
@@ -285,22 +287,24 @@ if __name__ == "__main__":
 
     if report_type == 'water supply':
 
-
         # calculate fields
-        dfs = calculate_supply_fields(dss_path, s_supply_formulas, wy_flags_path)
-        comparison_tables =[]
+        dfs, df_exceedances = calculate_supply_fields(dss_path, s_supply_formulas, wy_flags_path)
+
         for comparison_index, comparison in enumerate(comparisons):
             if comparison_index == 0:
                 doc.add_page_break()
                 change_orientation(doc, "landscape")
+
             # Add heading for first table
-            doc.add_heading("CalSim 3 Water Summary Report, by Region and Type, Long-Term Average and Dry and Critical Year Averages", level=2)
+            tab_title_prefix = "Table " + appendix_prefix + "-"
+            add_caption_water_supply(doc, "Table", tab_title_prefix, "CalSim 3 Water Summary Report, by Region and Type, Long-Term Average and Dry and Critical Year Averages", custom_style="Table Caption")
 
             # create table
             df_curr_table = dfs.loc[(comparison, ['Long Term', 'Dry and Critical']), :]
             df_curr_table.loc['Description', dfs.loc['Description', :].columns] = dfs.loc['Description', :].values
             df_curr_table.loc['Units', dfs.loc['Units', :].columns] = dfs.loc['Units', :].values
 
+            # first do the region table
             region_table = df_curr_table[['Sacramento River Hydrologic Region', 'San Joaquin River Hydrologic Region (not including Friant-Kern and Madera Canal water users)',
                                           'San Francisco Bay Hydrologic Region', 'Central Coast Hydrologic Region', 'Tulare Lake Hydrologic Region (not including Friant-Kern Canal water users)',
                                           'South Lahontan Hydrologic Region', 'South Coast Hydrologic Region', 'Total For All Regions']]
@@ -319,9 +323,11 @@ if __name__ == "__main__":
             footnote2.paragraph_format.space_before = Pt(1)
             footnote2.paragraph_format.space_after = Pt(1)
 
+            # next we do the north and south table
+            # these are split only to get the headers to look good, functionally they are one table
             doc.add_page_break()
+            add_caption_water_supply(doc, "Table", tab_title_prefix, "CalSim 3 Water Supply Summary Report, by Type, Long-Term Average and Dry and Critical Year Averages", custom_style="Table Caption")
 
-            doc.add_heading("CalSim 3 Water Supply Summary Report, by Type, Long-Term Average and Dry and Critical Year Averages", level=2)
             north_table = df_curr_table[['North of Delta', 'Total CVP North of Delta', 'Total SWP North of Delta', 'Total North of Delta']]
             t = doc.add_table(2 * north_table.shape[1] + len(north_table.columns.get_level_values(0).unique()) + 1, 7)
             format_table_supply(t, north_table, doc, comparison, [])
@@ -342,8 +348,51 @@ if __name__ == "__main__":
             run.font.size = Pt(9)
             footnote2.paragraph_format.space_before = Pt(1)
             footnote2.paragraph_format.space_after = Pt(1)
-            pass
+
+            doc.add_page_break()
+
         # create plots
+        # Check for/create directory to save plots
+        plot_directory = "supply_plots"
+
+        if os.path.exists(plot_directory):
+            # If the directory already exists, clear it out (Wytype names are different for trinity vs sjr and sac, so it
+            # can cause issues if there's old results.
+            shutil.rmtree(plot_directory, ignore_errors=True)
+
+        # WYType Labels to use in stat plot titles. (Corresponds to the "Statistics" column value for the last 6 rows in the exceedance tables)
+        fields = df_exceedances.columns
+        df_exceedance_list = [df_exceedances.loc[scenario] for scenario in df_exceedances.index.get_level_values(0).unique()]
+        fig_value = 'Average Volume (TAF)'
+        line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g", 'c']
+        line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"]
+
+        # Iterate through each stat and plot month abbreivated name by EC in current type of year
+        for field in fields:
+            create_month_plot(df_exceedance_list, fig_value, field, plot_directory, alts, line_styles, line_colors, report_type)
+
+
+            # Center figures in middle of page by adding some new lines above
+            p = doc.add_paragraph()
+            run = p.add_run()
+
+
+            #Add figure as a picture
+            o_fig = doc.add_picture(plot_directory + "/" + field + ".png")
+
+            # Generate fig title
+            fig_title_prefix = "Figure " + appendix_prefix + "-"
+            fig_title = field
+
+            # Add title below figure
+            add_caption_water_supply(doc, "Figure", fig_title_prefix, fig_title, custom_style="Figure Caption")
+
+            # if we are on the last plot we don't need a page break
+            if field == fields[-1]:
+                continue
+            else:
+                doc.add_page_break()
+
     else:
         for field_index, location in enumerate(fields):
             if field_index ==0:
