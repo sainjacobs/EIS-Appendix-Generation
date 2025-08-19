@@ -152,7 +152,7 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
         s_stat = 'sum' if row['Statistic'] == 'Sum' else 'mean'
         if row['Resolution'] == 'Annual':
             if row['Annual_ Month_ Range'] == 'MarFeb':
-                df_output.loc[:, row['Title']] = df_inputs.groupby(['Scenario', 'CY'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
+                df_output.loc[:, row['Title']] = df_inputs.groupby(['Scenario', 'DY'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
             elif row['Annual_ Month_ Range'] == 'JanDec':
                 df_output.loc[:, row['Title']] = df_inputs.groupby(['Scenario', 'Year'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
             elif row['Annual_ Month_ Range'] == 'OctSep':
