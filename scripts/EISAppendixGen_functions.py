@@ -241,9 +241,11 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
 
         # fields to add up
         ls_fields = row[~row.isna()].values
+        ls_add_fields = [field for field in ls_fields if field[0] != '-']
+        ls_subtract_fields = [field[1:] for field in ls_fields if field[0] == '-']
 
         # add them up and insert into final data frame
-        df_exceedances[row_index] = df_output[ls_fields].sum(axis=1)
+        df_exceedances[row_index] = df_output[ls_add_fields].sum(axis=1) - df_output[ls_subtract_fields].sum(axis=1)
 
     # sort and calculate exceedance probabilities
     lf_probabilities = np.array(range(1, len(df_exceedances.index.levels[1]) + 1)) / (len(df_exceedances.index.levels[1]) + 1)

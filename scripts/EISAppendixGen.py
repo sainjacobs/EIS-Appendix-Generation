@@ -46,6 +46,7 @@ if __name__ == "__main__":
     #     "BALLS FERRY",
     #     "JELLYS FERRY",
     #     "BEND BRIDGE",
+
     #     "RED_BLUFF",
     #     "RED BLUFF DAM",
     #     "HAMILTON CITY",
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     # ]
 
     # Water supply fields, order doesn't matter
-    alts = ['NAA', 'Alt 2 v1', 'Action 5']
+    alts = ['NAA', "ALT2v1"]
     fields = ['D_SBP028_17S_PR', 'D_JBC002_17N_PR',
        'D_CRK005_17N_NR', 'D_SAC294_03_PA', 'D_CAA143_90_PA2',
        'D_WTPCSD_02_PA', 'D_DMC034_71_PA2', 'D_XCC025_72_PA',
