@@ -161,14 +161,14 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
             i_month = list(calendar.month_abbr).index(row['Annual_ Month_ Range'])
             df_output.loc[:, row['Title']] = df_inputs[df_inputs['Month'] == i_month].groupby(['Scenario', 'Year'])[sl_add_fields].agg(s_stat).agg(s_stat, axis=1)
 
-    # drop these partial years
-    df_output.drop(index=[1921, 2021], level=1, inplace=True)
+    # drop 1921 partial year
+    df_output.drop(index=[1921], level=1, inplace=True)
 
     # formulas for the final categories
     df_final_formulas = pd.read_excel(s_formulas, sheet_name='final', index_col=[0, 1])
 
-    # data to hold the table data
-    df_final = pd.DataFrame(index=df_output.index, columns=df_final_formulas.index)
+    # data to hold the table data, skip 2021 since none have that full year
+    df_final = pd.DataFrame(index=df_output.drop(index=[2021], level=1).index, columns=df_final_formulas.index)
 
     # go through each final formula and calculate it
     for row_index, row in df_final_formulas.iterrows():
@@ -244,19 +244,13 @@ def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
         ls_add_fields = [field for field in ls_fields if field[0] != '-']
         ls_subtract_fields = [field[1:] for field in ls_fields if field[0] == '-']
 
-        # add them up and insert into final data frame
-        df_exceedances[row_index] = df_output[ls_add_fields].sum(axis=1) - df_output[ls_subtract_fields].sum(axis=1)
-
-    # sort and calculate exceedance probabilities
-    lf_probabilities = np.array(range(1, len(df_exceedances.index.levels[1]) + 1)) / (len(df_exceedances.index.levels[1]) + 1)
-
-    for scenario in df_exceedances.index.get_level_values(0).unique():
-        df_exceedances.loc[scenario, 'Probability'] = list(reversed(lf_probabilities))
-        for column in df_exceedances:
-            df_exceedances.loc[scenario, column] = df_exceedances.loc[scenario, column].sort_values(ignore_index=True).values
-
-    # Set probabilities to be indecies w scenario names
-    df_exceedances.set_index([df_exceedances.index.get_level_values(0), 'Probability'], inplace=True)
+        # If they are all water year, inclue 2021
+        if np.all(df_formulas[df_formulas['Title'].isin(ls_fields)]['Annual_ Month_ Range'] == 'OctSep'):
+            # add them up and insert into final data frame
+            df_exceedances[row_index] = df_output[ls_add_fields].sum(axis=1) - df_output[ls_subtract_fields].sum(axis=1)
+        else:
+            # add them up and insert into final data frame
+            df_exceedances[row_index] = df_output.drop(index=[2021], level=1)[ls_add_fields].sum(axis=1) - df_output.drop(index=[2021], level=1)[ls_subtract_fields].sum(axis=1)
 
     return df_final, df_exceedances
 
