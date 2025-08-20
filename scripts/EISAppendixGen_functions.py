@@ -949,7 +949,7 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
             doc_table.cell(curr_row, 4).text = str(round(df_table.loc[(comparison[1], 'Dry and Critical'), (section_name, sub_section)]))
             doc_table.cell(curr_row, 5).text = str(round(df_table.loc[(comparison[0], 'Dry and Critical'), (section_name, sub_section)]))
             doc_table.cell(curr_row, 6).text = str(
-                round(df_table.loc[(comparison[1], 'Dry and Critical'), (section_name, sub_section)] - df_table.loc[(comparison[0], 'Long Term'), (section_name, sub_section)]))
+                round(df_table.loc[(comparison[1], 'Dry and Critical'), (section_name, sub_section)] - df_table.loc[(comparison[0], 'Dry and Critical'), (section_name, sub_section)]))
 
             curr_row += 1
 
