@@ -47,6 +47,7 @@ conda env create -f appendix_gen.yml
 	3) Define the `alts` list, specify the same run names that you provided in the DSSReader (such as NAA, Alt1, etc.) All names should be exactly the same, except that
 	"Baseline" should be referred to as "NAA" in these scripts. Write the file names without quotation marks.
 	4) Define the `report_type` variable as either "flow", "elevation", or "diversion" for a CalSim appendices, "temperature" for a HEC5Q appendix, 
+	4) Define the "report_type" variable as either "flow", "elevation", "diversion", or "water supply" for a CalSim appendices, "temperature" for a HEC5Q appendix, 
 	or "EC", "Cl", or "X2" for a DSM2 (salinity) appendices.
 	5) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space.
 	7) Make sure `dss_path` variable correctly references the DSS_contents output file you copied over. Also, make sure that the parent directory is correct
