@@ -1020,11 +1020,6 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         fig, axs = plt.subplots(figsize=(9, 5.5), linewidth=1, edgecolor="black")
     else:
         fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
-    # define size and borders
-    if report_type == 'water supply':
-        fig, axs = plt.subplots(figsize=(9, 5.5), linewidth=1, edgecolor="black")
-    else:
-        fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
 
     for fig_index in range(len(dfs)):
         # Dataset for this alt

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     #Fields to use from DSS Reader
 
     # Use for running "elevations" report type, in desired order.
-    # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
+    fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     # #Use for running "flow" report type
     # fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
@@ -57,97 +57,97 @@ if __name__ == "__main__":
 
     # Water supply fields, order doesn't matter
     alts = ['NAA', "ALT2v1"]
-    fields = ['D_SBP028_17S_PR', 'D_JBC002_17N_PR',
-       'D_CRK005_17N_NR', 'D_SAC294_03_PA', 'D_CAA143_90_PA2',
-       'D_WTPCSD_02_PA', 'D_DMC034_71_PA2', 'D_XCC025_72_PA',
-       'D_WTPBLV_03_PU2', 'D_WTPCSD_02_PU', 'D_WKYTN_02_PU',
-       'D_WTPJMS_03_PU1', 'D_FOLSM_WTPSJP_CVP', 'D_NFA016_WTPWAL_CVP',
-       'D_WTPJJO_50_PU', 'D_WTPFTH_02_SU', 'D_WTPFTH_03_SU',
-       'D_WTPBUK_03_SU', 'D_SAC296_02_SA', 'D_SAC289_03_SA',
-       'D_GCC027_08N_SA2', 'D_GCC056_08S_SA2', 'D_SAC178_08N_SA1',
-       'D_SAC159_08N_SA1', 'D_SAC159_08S_SA1', 'D_SAC121_08S_SA3',
-       'D_SAC109_08S_SA3', 'D_SAC136_18_SA', 'D_SAC122_19_SA',
-       'D_SAC115_19_SA', 'D_SAC099_19_SA', 'D_SAC091_19_SA',
-       'D_MTC000_09_SA1', 'D_SAC082_22_SA1', 'D_SAC078_22_SA1',
-       'D_SAC083_21_SA', 'D_SAC074_21_SA', 'D_MDOTA_73_XA',
-       'D_DMC111_73_XA', 'D_MDOTA_64_XA', 'D_XCC010_72_XA2',
-       'D_ARY010_72_XA1', 'D_XCC054_72_XA3', 'D_GCC027_08N_PR1',
-       'D_MTC000_09_PR', 'D_GCC056_08S_PR', 'D_CBD037_08S_PR',
-       'D_GCC039_08N_PR2', 'D_MDOTA_91_PR', 'D_ARY010_72_PR6',
-       'D_XCC025_72_PR6', 'D_XCC054_72_PR5', 'D_VLW008_72_PR5',
-       'D_ARY010_72_PR3', 'D_XCC033_72_PR4', 'D_ARY010_72_PR4',
-       'D_XCC033_72_PR2', 'D_VLW008_72_PR1', 'D_CAA046_71_PA7_PAG',
-       'D_THRMF_11_NU1_PMI', 'D_WTPCYC_16_PU', 'D_CSB038_OBISPO_PCO',
-       'D_CSB103_BRBRA_PMI', 'D_CSB103_BRBRA_PCO', 'D_CSB103_BRBRA_PIN',
-       'D_ESB324_AVEK_PCO', 'D_ESB324_AVEK_PIN', 'D_ESB433_MWDSC_PMI',
-       'D_ESB433_MWDSC_PCO', 'D_ESB433_MWDSC_PIN', 'D_THRMA_WEC000',
-       'D_THRMA_RVC000', 'D_FTR039_SEC009', 'D_THRMA_JBC000',
-       'D_FTR021_16_SA', 'D_FTR014_16_SA', 'D_FTR018_15S_SA',
-       'D_FTR018_16_SA', 'D_WTPMNR_13_NU1', 'D_OROVL_13_NU1',
-       'D_FPT013_WTPVNY_CVP', 'D_WTPSAC_26S_PU4_CVP',
-       'D_FPT013_FSC013_EBMUD', 'D_FPT013_FSC013_CCWD', 'D_CCL005_04_PA1',
-       'D_TCC022_04_PA2', 'D_TCC036_07N_PA', 'D_TCC081_07S_PA',
-       'D_CBD028_08S_PA', 'D_CBD049_08N_PA', 'D_KLR005_21_PA',
-       'DG_08N_PR2', 'DG_12_NU1', 'DG_11_NU1', 'DG_16_PU',
-       'D_FTR021_16_PA', 'DG_16_SA', 'DG_15S_SA', 'D_SVRWD_CSTLN_PCO',
-       'D_SVRWD_CSTLN_PMI', 'D_PRRIS_MWDSC', 'D_PRRIS_MWDSC_PCO',
-       'D_PRRIS_MWDSC_PIN', 'D_PRRIS_MWDSC_PMI', 'D_PYRMD_VNTRA_LCP',
-       'D_PYRMD_VNTRA_PCO', 'D_PYRMD_VNTRA_PMI', 'D_CSTIC_VNTRA',
-       'D_CSTIC_VNTRA_PCO', 'D_CSTIC_VNTRA_PIN', 'D_CSTIC_VNTRA_PMI',
-       'D_BKR004_NBA009_NAPA_PMI', 'D_BKR004_NBA009_NAPA_PCO',
-       'D_BKR004_NBA009_NAPA_PIN', 'D_BKR004_NBA009_SCWA_PMI',
-       'D_BKR004_NBA009_SCWA_PCO', 'D_BKR004_NBA009_SCWA_PIN',
-       'D_CCC019_CCWD', 'DG_13_NU1', 'D_MDOTA_90_PA1', 'D_CAA109_90_PA1',
-       'D_CAA143_90_PA1', 'D_CAA155_90_PA1', 'D_CAA172_90_PA1',
-       'D_MDOTA_91_PA', 'DG_73_XA', 'DG_64_XA', 'DG_72_XA2', 'DG_72_XA1',
-       'DG_91_PR', 'DG_72_PR6', 'DG_72_PR5', 'DG_72_PR3', 'DG_63_PR3',
-       'DG_72_PR4', 'D_DMC011_71_PA8', 'D_DMC030_71_PA1',
-       'D_DMC034_71_PA3', 'D_DMC044_71_PA4', 'D_DMC044_71_PA5',
-       'D_DMC064_71_PA6', 'D_DMC021_50_PA1', 'D_DMC070_73_PA1',
-       'D_CAA087_73_PA1', 'D_DMC105_73_PA2', 'D_CAA109_73_PA3',
-       'D_DMC091_73_PA3', 'DG_72_XA3', 'DG_72_PR2', 'DG_72_PR1',
-       'D_PCH000_SBCWD_PA', 'D_PCH000_SCVWD_PA', 'D_PCH000_SBCWD_PU',
-       'D_PCH000_SCVWD_PU', 'DG_11_SA1', 'DG_11_SA3',
-       'D_FOLSM_WTPEDH_CVP', 'D_FOLSM_EDCOCA_CVP', 'D_FOLSM_PCWA_CVP',
-       'D_FOLSM_WTPFOL_CVP', 'D_FOLSM_WTPRSV_CVP', 'D_CAA046_71_PA7_PIN',
-       'D_CAA046_71_PA7_PCO', 'D_SBA009_ACFC_PMI', 'D_SBA009_ACFC_PCO',
-       'D_SBA009_ACFC_PIN', 'D_SBA020_ACFC_PMI', 'D_SBA020_ACFC_PCO',
-       'D_SBA029_ACWD_PMI', 'D_SBA029_ACWD_PCO', 'D_SBA029_ACWD_PIN',
-       'D_SBA036_SCVWD_PMI', 'D_SBA036_SCVWD_PCO', 'D_SBA036_SCVWD_PIN',
-       'D_CAA143_90_PU', 'D_CAA156_90_PU', 'D_CAA165_90_PU',
-       'D_CAA173_EMPIRE_PAG', 'D_CAA173_EMPIRE_PCO',
-       'D_CAA173_EMPIRE_PIN', 'D_CAA181_KINGS_PAG', 'D_CAA181_KINGS_PCO',
-       'D_CAA181_KINGS_PIN', 'D_CAA183_TULARE_PAG', 'D_CAA183_TULARE_PCO',
-       'D_CAA183_TULARE_PIN', 'D_CAA184_DUDLEY_PAG',
-       'D_CAA184_DUDLEY_PCO', 'D_CAA184_DUDLEY_PIN', 'D_CAA194_KERN_PAG',
-       'D_CAA194_KERN_PCO', 'D_CAA194_KERNA_PMI', 'D_CAA194_KERNB_PMI',
-       'D_CAA238_CVPCV', 'D_CAA239_CVPRF', 'D_CAA242_KERN_PAG',
-       'D_CAA242_KERN_PCO', 'D_CAA242_KERN_PIN', 'D_CAA279_KERN',
-       'D_CSB015_KERN_BMWD_PAG', 'D_CSB015_KERN_BMWD_PCO',
-       'D_CSB009_CLRTA1_DDWD_PAG', 'D_CSB009_CLRTA1_DDWD_PCO',
-       'D_CSB009_CLRTA1_DDWD_PIN', 'D_CSB038_OBISPO_PCO',
-       'D_CSB038_OBISPO_PIN', 'D_CSB038_OBISPO_PMI', 'D_CSB103_BRBRA_PCO',
-       'D_CSB103_BRBRA_PIN', 'D_CSB103_BRBRA_PMI', 'D_ESB324_AVEK_PCO',
-       'D_ESB324_AVEK_PIN', 'D_ESB324_AVEK_PMI', 'D_ESB347_PLMDL_PCO',
-       'D_ESB347_PLMDL_PIN', 'D_ESB347_PLMDL_PMI', 'D_ESB355_LROCK_PCO',
-       'D_ESB355_LROCK_PMI', 'D_ESB403_MOJVE_PCO', 'D_ESB403_MOJVE_PMI',
-       'D_ESB407_CCHLA_PCO', 'D_ESB407_CCHLA_PIN', 'D_ESB407_CCHLA_PMI',
-       'D_ESB408_DESRT_PCO', 'D_ESB408_DESRT_PIN', 'D_ESB408_DESRT_PMI',
-       'D_ESB413_MWDSC_LCP', 'D_ESB413_MWDSC_PCO', 'D_ESB413_MWDSC_PIN',
-       'D_ESB413_MWDSC_PMI', 'D_ESB414_BRDNO_LCP', 'D_ESB414_BRDNO_PCO',
-       'D_ESB414_BRDNO_PIN', 'D_ESB414_BRDNO_PMI', 'D_ESB415_GABRL_LCP',
-       'D_ESB415_GABRL_PCO', 'D_ESB415_GABRL_PIN', 'D_ESB415_GABRL_PMI',
-       'D_ESB420_GRGNO_LCP', 'D_ESB420_GRGNO_PCO', 'D_ESB420_GRGNO_PIN',
-       'D_ESB420_GRGNO_PMI', 'D_WSB031_MWDSC_LCP', 'D_WSB031_MWDSC_PCO',
-       'D_WSB031_MWDSC_PIN', 'D_WSB031_MWDSC_PMI', 'D_WSB032_CLRTA2_LCP',
-       'D_WSB032_CLRTA2_PCO', 'D_WSB032_CLRTA2_PMI', 'D_FSC015_60N_NA2',
-       'D_FSC025_60N_PU_CVP', 'PERDV_CVPAG_S', 'PERDV_CVPAG_SYS',
-       'PERDV_CVPEX_S', 'PERDV_CVPMI_S', 'PERDV_CVPMI_SYS',
-       'PERDV_CVPRF_SYS', 'PERDV_CVPSC_SYS', 'PERDV_SWP_AG1',
-       'PERDV_SWP_FSC', 'PERDV_SWP_MWD1', 'SWP_CO_TOTAL', 'SWP_IN_TOTAL',
-       'SWP_TA_FEATH', 'SWP_TA_NBAY', 'SWP_TA_TOTAL', 'TOTAL_EXP',
-       'D_MLRTN_FRK_C1', 'D_MLRTN_FRK_C2', 'D_MLRTN_MDC_C1',
-       'D_MLRTN_MDC_C2', 'D_TCC111_07S_PA', 'D_SAC162_09_SA2']
+    # fields = ['D_SBP028_17S_PR', 'D_JBC002_17N_PR',
+    #    'D_CRK005_17N_NR', 'D_SAC294_03_PA', 'D_CAA143_90_PA2',
+    #    'D_WTPCSD_02_PA', 'D_DMC034_71_PA2', 'D_XCC025_72_PA',
+    #    'D_WTPBLV_03_PU2', 'D_WTPCSD_02_PU', 'D_WKYTN_02_PU',
+    #    'D_WTPJMS_03_PU1', 'D_FOLSM_WTPSJP_CVP', 'D_NFA016_WTPWAL_CVP',
+    #    'D_WTPJJO_50_PU', 'D_WTPFTH_02_SU', 'D_WTPFTH_03_SU',
+    #    'D_WTPBUK_03_SU', 'D_SAC296_02_SA', 'D_SAC289_03_SA',
+    #    'D_GCC027_08N_SA2', 'D_GCC056_08S_SA2', 'D_SAC178_08N_SA1',
+    #    'D_SAC159_08N_SA1', 'D_SAC159_08S_SA1', 'D_SAC121_08S_SA3',
+    #    'D_SAC109_08S_SA3', 'D_SAC136_18_SA', 'D_SAC122_19_SA',
+    #    'D_SAC115_19_SA', 'D_SAC099_19_SA', 'D_SAC091_19_SA',
+    #    'D_MTC000_09_SA1', 'D_SAC082_22_SA1', 'D_SAC078_22_SA1',
+    #    'D_SAC083_21_SA', 'D_SAC074_21_SA', 'D_MDOTA_73_XA',
+    #    'D_DMC111_73_XA', 'D_MDOTA_64_XA', 'D_XCC010_72_XA2',
+    #    'D_ARY010_72_XA1', 'D_XCC054_72_XA3', 'D_GCC027_08N_PR1',
+    #    'D_MTC000_09_PR', 'D_GCC056_08S_PR', 'D_CBD037_08S_PR',
+    #    'D_GCC039_08N_PR2', 'D_MDOTA_91_PR', 'D_ARY010_72_PR6',
+    #    'D_XCC025_72_PR6', 'D_XCC054_72_PR5', 'D_VLW008_72_PR5',
+    #    'D_ARY010_72_PR3', 'D_XCC033_72_PR4', 'D_ARY010_72_PR4',
+    #    'D_XCC033_72_PR2', 'D_VLW008_72_PR1', 'D_CAA046_71_PA7_PAG',
+    #    'D_THRMF_11_NU1_PMI', 'D_WTPCYC_16_PU', 'D_CSB038_OBISPO_PCO',
+    #    'D_CSB103_BRBRA_PMI', 'D_CSB103_BRBRA_PCO', 'D_CSB103_BRBRA_PIN',
+    #    'D_ESB324_AVEK_PCO', 'D_ESB324_AVEK_PIN', 'D_ESB433_MWDSC_PMI',
+    #    'D_ESB433_MWDSC_PCO', 'D_ESB433_MWDSC_PIN', 'D_THRMA_WEC000',
+    #    'D_THRMA_RVC000', 'D_FTR039_SEC009', 'D_THRMA_JBC000',
+    #    'D_FTR021_16_SA', 'D_FTR014_16_SA', 'D_FTR018_15S_SA',
+    #    'D_FTR018_16_SA', 'D_WTPMNR_13_NU1', 'D_OROVL_13_NU1',
+    #    'D_FPT013_WTPVNY_CVP', 'D_WTPSAC_26S_PU4_CVP',
+    #    'D_FPT013_FSC013_EBMUD', 'D_FPT013_FSC013_CCWD', 'D_CCL005_04_PA1',
+    #    'D_TCC022_04_PA2', 'D_TCC036_07N_PA', 'D_TCC081_07S_PA',
+    #    'D_CBD028_08S_PA', 'D_CBD049_08N_PA', 'D_KLR005_21_PA',
+    #    'DG_08N_PR2', 'DG_12_NU1', 'DG_11_NU1', 'DG_16_PU',
+    #    'D_FTR021_16_PA', 'DG_16_SA', 'DG_15S_SA', 'D_SVRWD_CSTLN_PCO',
+    #    'D_SVRWD_CSTLN_PMI', 'D_PRRIS_MWDSC', 'D_PRRIS_MWDSC_PCO',
+    #    'D_PRRIS_MWDSC_PIN', 'D_PRRIS_MWDSC_PMI', 'D_PYRMD_VNTRA_LCP',
+    #    'D_PYRMD_VNTRA_PCO', 'D_PYRMD_VNTRA_PMI', 'D_CSTIC_VNTRA',
+    #    'D_CSTIC_VNTRA_PCO', 'D_CSTIC_VNTRA_PIN', 'D_CSTIC_VNTRA_PMI',
+    #    'D_BKR004_NBA009_NAPA_PMI', 'D_BKR004_NBA009_NAPA_PCO',
+    #    'D_BKR004_NBA009_NAPA_PIN', 'D_BKR004_NBA009_SCWA_PMI',
+    #    'D_BKR004_NBA009_SCWA_PCO', 'D_BKR004_NBA009_SCWA_PIN',
+    #    'D_CCC019_CCWD', 'DG_13_NU1', 'D_MDOTA_90_PA1', 'D_CAA109_90_PA1',
+    #    'D_CAA143_90_PA1', 'D_CAA155_90_PA1', 'D_CAA172_90_PA1',
+    #    'D_MDOTA_91_PA', 'DG_73_XA', 'DG_64_XA', 'DG_72_XA2', 'DG_72_XA1',
+    #    'DG_91_PR', 'DG_72_PR6', 'DG_72_PR5', 'DG_72_PR3', 'DG_63_PR3',
+    #    'DG_72_PR4', 'D_DMC011_71_PA8', 'D_DMC030_71_PA1',
+    #    'D_DMC034_71_PA3', 'D_DMC044_71_PA4', 'D_DMC044_71_PA5',
+    #    'D_DMC064_71_PA6', 'D_DMC021_50_PA1', 'D_DMC070_73_PA1',
+    #    'D_CAA087_73_PA1', 'D_DMC105_73_PA2', 'D_CAA109_73_PA3',
+    #    'D_DMC091_73_PA3', 'DG_72_XA3', 'DG_72_PR2', 'DG_72_PR1',
+    #    'D_PCH000_SBCWD_PA', 'D_PCH000_SCVWD_PA', 'D_PCH000_SBCWD_PU',
+    #    'D_PCH000_SCVWD_PU', 'DG_11_SA1', 'DG_11_SA3',
+    #    'D_FOLSM_WTPEDH_CVP', 'D_FOLSM_EDCOCA_CVP', 'D_FOLSM_PCWA_CVP',
+    #    'D_FOLSM_WTPFOL_CVP', 'D_FOLSM_WTPRSV_CVP', 'D_CAA046_71_PA7_PIN',
+    #    'D_CAA046_71_PA7_PCO', 'D_SBA009_ACFC_PMI', 'D_SBA009_ACFC_PCO',
+    #    'D_SBA009_ACFC_PIN', 'D_SBA020_ACFC_PMI', 'D_SBA020_ACFC_PCO',
+    #    'D_SBA029_ACWD_PMI', 'D_SBA029_ACWD_PCO', 'D_SBA029_ACWD_PIN',
+    #    'D_SBA036_SCVWD_PMI', 'D_SBA036_SCVWD_PCO', 'D_SBA036_SCVWD_PIN',
+    #    'D_CAA143_90_PU', 'D_CAA156_90_PU', 'D_CAA165_90_PU',
+    #    'D_CAA173_EMPIRE_PAG', 'D_CAA173_EMPIRE_PCO',
+    #    'D_CAA173_EMPIRE_PIN', 'D_CAA181_KINGS_PAG', 'D_CAA181_KINGS_PCO',
+    #    'D_CAA181_KINGS_PIN', 'D_CAA183_TULARE_PAG', 'D_CAA183_TULARE_PCO',
+    #    'D_CAA183_TULARE_PIN', 'D_CAA184_DUDLEY_PAG',
+    #    'D_CAA184_DUDLEY_PCO', 'D_CAA184_DUDLEY_PIN', 'D_CAA194_KERN_PAG',
+    #    'D_CAA194_KERN_PCO', 'D_CAA194_KERNA_PMI', 'D_CAA194_KERNB_PMI',
+    #    'D_CAA238_CVPCV', 'D_CAA239_CVPRF', 'D_CAA242_KERN_PAG',
+    #    'D_CAA242_KERN_PCO', 'D_CAA242_KERN_PIN', 'D_CAA279_KERN',
+    #    'D_CSB015_KERN_BMWD_PAG', 'D_CSB015_KERN_BMWD_PCO',
+    #    'D_CSB009_CLRTA1_DDWD_PAG', 'D_CSB009_CLRTA1_DDWD_PCO',
+    #    'D_CSB009_CLRTA1_DDWD_PIN', 'D_CSB038_OBISPO_PCO',
+    #    'D_CSB038_OBISPO_PIN', 'D_CSB038_OBISPO_PMI', 'D_CSB103_BRBRA_PCO',
+    #    'D_CSB103_BRBRA_PIN', 'D_CSB103_BRBRA_PMI', 'D_ESB324_AVEK_PCO',
+    #    'D_ESB324_AVEK_PIN', 'D_ESB324_AVEK_PMI', 'D_ESB347_PLMDL_PCO',
+    #    'D_ESB347_PLMDL_PIN', 'D_ESB347_PLMDL_PMI', 'D_ESB355_LROCK_PCO',
+    #    'D_ESB355_LROCK_PMI', 'D_ESB403_MOJVE_PCO', 'D_ESB403_MOJVE_PMI',
+    #    'D_ESB407_CCHLA_PCO', 'D_ESB407_CCHLA_PIN', 'D_ESB407_CCHLA_PMI',
+    #    'D_ESB408_DESRT_PCO', 'D_ESB408_DESRT_PIN', 'D_ESB408_DESRT_PMI',
+    #    'D_ESB413_MWDSC_LCP', 'D_ESB413_MWDSC_PCO', 'D_ESB413_MWDSC_PIN',
+    #    'D_ESB413_MWDSC_PMI', 'D_ESB414_BRDNO_LCP', 'D_ESB414_BRDNO_PCO',
+    #    'D_ESB414_BRDNO_PIN', 'D_ESB414_BRDNO_PMI', 'D_ESB415_GABRL_LCP',
+    #    'D_ESB415_GABRL_PCO', 'D_ESB415_GABRL_PIN', 'D_ESB415_GABRL_PMI',
+    #    'D_ESB420_GRGNO_LCP', 'D_ESB420_GRGNO_PCO', 'D_ESB420_GRGNO_PIN',
+    #    'D_ESB420_GRGNO_PMI', 'D_WSB031_MWDSC_LCP', 'D_WSB031_MWDSC_PCO',
+    #    'D_WSB031_MWDSC_PIN', 'D_WSB031_MWDSC_PMI', 'D_WSB032_CLRTA2_LCP',
+    #    'D_WSB032_CLRTA2_PCO', 'D_WSB032_CLRTA2_PMI', 'D_FSC015_60N_NA2',
+    #    'D_FSC025_60N_PU_CVP', 'PERDV_CVPAG_S', 'PERDV_CVPAG_SYS',
+    #    'PERDV_CVPEX_S', 'PERDV_CVPMI_S', 'PERDV_CVPMI_SYS',
+    #    'PERDV_CVPRF_SYS', 'PERDV_CVPSC_SYS', 'PERDV_SWP_AG1',
+    #    'PERDV_SWP_FSC', 'PERDV_SWP_MWD1', 'SWP_CO_TOTAL', 'SWP_IN_TOTAL',
+    #    'SWP_TA_FEATH', 'SWP_TA_NBAY', 'SWP_TA_TOTAL', 'TOTAL_EXP',
+    #    'D_MLRTN_FRK_C1', 'D_MLRTN_FRK_C2', 'D_MLRTN_MDC_C1',
+    #    'D_MLRTN_MDC_C2', 'D_TCC111_07S_PA', 'D_SAC162_09_SA2']
 
     #alts = ['NAA', 'Alternative 1', 'Alternative 2a', 'Alternative 2b', 'Alternative 3', 'Alternative 4', 'Alternative 6', 'Alternative 7']
 
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     Note 2: Conversion from microSiemens/cm to mg/L Cl uses equation 2 of https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
     
     """
-    report_type = "water supply"
+    report_type = "elevation"
 
     #For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
     use_lumped_table_captions = False
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
-    appendix_prefix = " F.2.4" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion; F.2.4 is water supply
+    appendix_prefix = " F.2.1" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion; F.2.4 is water supply
                                 #F.2.5 is DSM2-EC ; F.2.6 is DSM2-X2 (position); F.2.7 is DSM2 - Chloride; F.2.8 is DSM2
 
     # Path to file with location code crosswalk
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF_SacLTOTest.xlsx" #TEST ONLY
     #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename.xlsx"#Temperature, all alternatives (No action alternative was manually "renamed" to Baseline in excel.
     #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_alt7_June2017Removed.xlsx"
-    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents_TAF.xlsx"
+    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents.xlsx"
     # dss_path = r"C:\Users\cyu\sacLTO2021\DSS_contents_CombinedSacAmerican.xlsx" #Action 5 run.
     #Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
@@ -584,7 +584,7 @@ if __name__ == "__main__":
 
             if os.path.exists(month_directory):
                 # If the directory already exists, clear it out to prevent using any old figures by accident from previous field/alternative.
-                shutil.rmtree(month_directory)
+                shutil.rmtree(month_directory, ignore_errors=True)
 
             for month in fig_dfs[0].columns[1:]:
                 create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
@@ -610,7 +610,7 @@ if __name__ == "__main__":
             if os.path.exists(stat_directory):
                 # If the directory already exists, clear it out (Wytype names are different for trinity vs sjr and sac, so it
                 # can cause issues if there's old results.
-                shutil.rmtree(stat_directory)
+                shutil.rmtree(stat_directory, ignore_errors=True)
 
             #WYType Labels to use in stat plot titles. (Corresponds to the "Statistics" column value for the last 6 rows in the exceedance tables)
             stats = e_dfs[0].Statistic[-6:].values.tolist()
@@ -674,7 +674,7 @@ if __name__ == "__main__":
             if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:  #For Sac or SJR WYType
                 stat_titles = ["Long Term", "Wet Year", "Above Normal Year", "Below Normal Year", "Dry Year", 'Critical Year']
             else: #For Trinity WYType
-                stat_titles = ["Long Term", "Very Wet Year", "Wet Year", "Normal Year", "Dry Year", "Critically Dry Year"]
+                stat_titles = ["Long Term", "Extremely Wet Year", "Wet Year", "Normal Year", "Dry Year", "Critically Dry Year"]
 
             for stat_plot_index, stat_title in enumerate(stat_titles):
                 # Center figures in middle of page by adding some new lines above
