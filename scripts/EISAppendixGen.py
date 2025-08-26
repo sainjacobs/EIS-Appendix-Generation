@@ -1,5 +1,3 @@
-# from IPython.utils.text import date_format
-
 from EISAppendixGen_functions import (get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot,
                                       change_orientation, order_elevation_storage_fields, calculate_supply_fields, format_table_supply)
 import docx
@@ -46,7 +44,6 @@ if __name__ == "__main__":
     #     "BALLS FERRY",
     #     "JELLYS FERRY",
     #     "BEND BRIDGE",
-
     #     "RED_BLUFF",
     #     "RED BLUFF DAM",
     #     "HAMILTON CITY",
@@ -190,25 +187,18 @@ if __name__ == "__main__":
         location_cw_path = r"..\inputs\location_code_crosswalk_CalSim.xlsx"
     elif report_type in ["EC", "Cl", "Position"]:
         #DSM2 related reports use the salinity crosswalk
-        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_salinity.xlsx"
+        location_cw_path = r"..\inputs\location_code_crosswalk_salinity.xlsx"
     elif report_type == 'temperature':
         #Temperature related appendices use the temperature crosswalk
-        location_cw_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\location_code_crosswalk_Temp.xlsx"
+        location_cw_path = r"..\inputs\location_code_crosswalk_Temp.xlsx"
 
     s_supply_formulas = r"..\inputs\water_supply_formulas.xlsx"
 
     #Path to file with DSSReader output
     # for water supply, must be the _TAF output
     #Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_temperatureTest.xlsx" #Temperature test input
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_CFS.xlsx" #Trinity LTO flow/diversion input
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF.xlsx" #Trinity LTO elevation/storage input
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_salinity_test.xlsx" #Salinity (sample from Sac LTO used for testing)
-    #dss_path = r"C:\calsim_gits\eis-appendix-gen_upd\eis-appendix-generation\inputs\DSS_contents_TAF_SacLTOTest.xlsx" #TEST ONLY
-    #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename.xlsx"#Temperature, all alternatives (No action alternative was manually "renamed" to Baseline in excel.
-    #dss_path = r"C:\Users\cyu\OneDrive - DOI\Documents\TemperatureModeling\temperature_outputs\appendixF\ForDSSReader_temperature_rename_alt7_June2017Removed.xlsx"
     dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents.xlsx"
-    # dss_path = r"C:\Users\cyu\sacLTO2021\DSS_contents_CombinedSacAmerican.xlsx" #Action 5 run.
+
     #Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
 
@@ -219,9 +209,9 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     #Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"..\appendix_temp3.docx"
+    doc_name = r"..\appendix_temp.docx"
     #Name of final word doc
-    new_doc = rf"..\appendix_final_{report_type}_fixedExceedanceMinMax.docx"
+    new_doc = rf"..\appendix_final_{report_type}.docx"
 
 ####END OF USER INPUTS #######
 
@@ -535,12 +525,14 @@ if __name__ == "__main__":
                     run1.font.size = Pt(9)
                     footnote0.paragraph_format.space_after = Pt(1)
 
+                    #Add footnote specifying hydrology
                     footnote1 = doc.add_paragraph()
                     run = footnote1.add_run('* All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
                     run.font.size = Pt(9)
                     footnote1.paragraph_format.space_before = Pt(1)
                     footnote1.paragraph_format.space_after = Pt(1)
 
+                    #Add footnote specifying what WY type this field's table uses.
                     footnote2 = doc.add_paragraph()
                     if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:
                         run = footnote2.add_run(
@@ -551,7 +543,7 @@ if __name__ == "__main__":
                     footnote2.paragraph_format.space_before = Pt(1)
                     footnote2.paragraph_format.space_after = Pt(1)
 
-                    #Commented out b/c we are using water years now.
+                    #Add footnote for water year type sorting method.
                     footnote3 = doc.add_paragraph()
                     run = footnote3.add_run('* Water Year Types results are displayed with water year – year type sorting.')
                     run.font.size = Pt(9)
@@ -699,7 +691,7 @@ if __name__ == "__main__":
                 caption0.paragraph_format.space_before = Pt(1)
                 caption0.paragraph_format.space_after = Pt(1)
 
-                # Commented out b/c we are using water years now.
+                # Add footnote for what wy type sorting is used.
                 caption1 = doc.add_paragraph()
                 run = caption1.add_run('*These results are displayed with water year - year type sorting.')
                 run.font.size = Pt(9)
