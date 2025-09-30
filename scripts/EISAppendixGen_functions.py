@@ -816,6 +816,7 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     none
     """
 
+    doc_table.autofit = False
     # set consistent borders over whole table
     for row in doc_table.rows:
         for cell in row.cells:
@@ -836,8 +837,8 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     doc_table.cell(0, 4).text = comparison[1]
     doc_table.cell(0, 5).text = comparison[0]
     doc_table.cell(0, 6).text = comparison[1] + ' minus ' + comparison[0]
-    doc_table.rows[0].height = Inches(0.65)
-    doc_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+    doc_table.rows[0].height = Inches(0.7)
+    doc_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
     # Make headers bold
     make_rows_bold(doc_table.rows[0])
@@ -870,8 +871,8 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
             doc_table.cell(curr_row, 4).text = comparison[1]
             doc_table.cell(curr_row, 5).text = comparison[0]
             doc_table.cell(curr_row, 6).text = comparison[1] + ' minus ' + comparison[0]
-            doc_table.rows[curr_row].height = Inches(0.65)
-            doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+            doc_table.rows[curr_row].height = Inches(0.7)
+            doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
             # Make headers bold
             make_rows_bold(doc_table.rows[curr_row])
@@ -913,7 +914,8 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
                 doc_table.cell(curr_row, 4).text = comparison[1]
                 doc_table.cell(curr_row, 5).text = comparison[0]
                 doc_table.cell(curr_row, 6).text = comparison[1] + ' minus ' + comparison[0]
-                doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.AUTO
+                doc_table.rows[curr_row].height = Inches(0.7)
+                doc_table.rows[curr_row].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
                 # Make headers bold
                 make_rows_bold(doc_table.rows[curr_row])
@@ -965,19 +967,19 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
 
     # Adjust the width of the columns
     for cell in doc_table.columns[0].cells:
-        cell.width = Inches(1.5)
+        cell.width = Inches(1.45)
     for cell in doc_table.columns[1].cells:
-        cell.width = Inches(3.25)
+        cell.width = Inches(3.2)
     for cell in doc_table.columns[2].cells:
         cell.width = Inches(.75)
     for cell in doc_table.columns[3].cells:
-        cell.width = Inches(1.25)
+        cell.width = Inches(1.2)
     for cell in doc_table.columns[4].cells:
-        cell.width = Inches(0.75)
+        cell.width = Inches(0.8)
     for cell in doc_table.columns[5].cells:
-        cell.width = Inches(0.75)
+        cell.width = Inches(0.8)
     for cell in doc_table.columns[6].cells:
-        cell.width = Inches(0.75)
+        cell.width = Inches(0.8)
 
     # Change font size to fit on page better
     change_table_font_size(doc, 10)
