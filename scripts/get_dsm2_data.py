@@ -25,7 +25,7 @@ def get_stations():
     # Look for the DSM2ComplianceLocations.csv file
     for j in range(len(fnames)):
         if fnames[j] == "DSM2ComplianceLocations.csv":
-            stations_df = pd.read_csv(fpaths[j], header=None, sep=",", quotechar='"', comment='#')
+            stations_df = pd.read_csv(fpaths[j], header=None, sep=",")
             break  # Exit loop once the file is found
 
     if stations_df is not None:
@@ -48,7 +48,7 @@ def get_locations():
     # Look for the DSM2ComplianceLocations.csv file
     for j in range(len(fnames)):
         if fnames[j] == "DSM2ComplianceLocations.csv":
-            stations_df = pd.read_csv(fpaths[j], header=None, sep=",", quotechar='"', comment='#')
+            stations_df = pd.read_csv(fpaths[j], header=None, sep=",")
             break  # Exit loop once the file is found
 
     if stations_df is not None:
@@ -71,7 +71,7 @@ def get_stats():
     # Look for the DSM2ComplianceLocations.csv file
     for j in range(len(fnames)):
         if fnames[j] == "DSM2ComplianceLocations.csv":
-            stations_df = pd.read_csv(fpaths[j], header=None, sep=",", quotechar='"', comment='#')
+            stations_df = pd.read_csv(fpaths[j], header=None, sep=",")
             break  # Exit loop once the file is found
 
     if stations_df is not None:
@@ -95,7 +95,7 @@ def get_sri_current_condition():
     for j in range(len(fnames)):
         if fnames[j] == "SacRiverIndex.csv":
             print("\nFound file:", fnames[j])
-            wyts_df = pd.read_csv(fpaths[j], header=0, sep=",", quotechar='"', comment='#')
+            wyts_df = pd.read_csv(fpaths[j], header=0, sep=",")
             print("\n")
             break  # Exit loop once the file is found
 
@@ -115,7 +115,7 @@ def get_wyts_2022():
     # Look for the WYT_2022MED.csv file
     for j in range(len(fnames)):
         if fnames[j] == "WYT_2022MED.csv":
-            wyts_df = pd.read_csv(fpaths[j], header=0, sep=",", quotechar='"', comment='#')
+            wyts_df = pd.read_csv(fpaths[j], header=0, sep=",")
             break  # Exit loop once the file is found
 
     return wyts_df
@@ -133,7 +133,7 @@ def get_wyts_current_condition():
     for fname, fpath in zip(fnames, fpaths):
         if fname == "WYT_CurrentConditions.csv":
             print("\nFound file:", fname)
-            wyts_df = pd.read_csv(fpath, quotechar='"', comment='#')
+            wyts_df = pd.read_csv(fpath, )
             print()
             return wyts_df
 
@@ -151,7 +151,7 @@ def get_specified_table(s_csv_name):
     # Look for the D1641_AG.csv file
     for j in range(len(fnames)):
         if fnames[j] == s_csv_name:
-            std_df = pd.read_csv(fpaths[j], header=0, sep=",", quotechar='"', comment='#')
+            std_df = pd.read_csv(fpaths[j], header=0, sep=",")
             break  # Exit loop once the file is found
 
     return std_df
@@ -258,13 +258,13 @@ def get_dsm2_timeseries_data(input_model_name):
                     continue
 
                 dates = np.array(o_timeseries.pytimes)
-                dates = dates + datetime.timedelta(days=-1)
+                dates = dates + datetime.timedelta(days=-2)
 
                 years = [(date + datetime.timedelta(days=-1)).strftime("%Y") for date in dates]
                 months = [(date + datetime.timedelta(days=-1)).strftime("%m") for date in dates]
                 days = [(date + datetime.timedelta(days=-1)).strftime("%d") for date in dates]
 
-                values = o_timeseries.values
+                values = np.round(o_timeseries.values, 5)
 
                 unitsEC = ["mmhos/cm"] * len(values)
                 unitsCl = ["mg/L"] * len(values)
@@ -904,4 +904,4 @@ if __name__ == '__main__':
     for model_name in dirnames:
         print(f"Processing model: {model_name}")
         get_dsm2_timeseries_data(model_name)
-        break
+
