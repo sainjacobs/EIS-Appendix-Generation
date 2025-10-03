@@ -11,6 +11,7 @@ import pandas as pd
 import datetime
 from pydsstools.heclib.dss import HecDss
 import numpy as np
+import math
 
 def get_stations():
     # Define the path to the stations directory
@@ -876,6 +877,292 @@ def get_dsm2_timeseries_data(file_path):
         f.write(','.join(custom_header) + '\n')
         df_pre.to_csv(f, index=False, header=False, na_rep='NA')
 
+def percentile(N, percent, key=lambda x:x):
+    """
+    Find the percentile of a list of values.
+
+    @parameter N - is a list of values. Note N MUST BE already sorted.
+    @parameter percent - a float value from 0.0 to 1.0.
+    @parameter key - optional key function to compute value from each element of N.
+
+    @return - the percentile of the values
+    """
+    if not N:
+        return None
+    k = (len(N)-1) * percent
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return key(N[int(k)])
+    d0 = key(N[int(f)]) * (c-k)
+    d1 = key(N[int(c)]) * (k-f)
+    return d0+d1
+
+
+def combine_percentiles(scen_nm):
+
+    infn = "./water_qual_csvs/DSM2ComplianceDiffData_" + scen_nm + ".csv"
+    outfn = "./water_qual_csvs/_ComplianceSummary/DSM2ComplianceSummary_" + scen_nm + ".csv"
+    out_dir = "./water_qual_csvs/_Percentiles/"
+
+    if not os.path.exists("./water_qual_csvs/_ComplianceSummary/"):
+        os.mkdir("./water_qual_csvs/_ComplianceSummary/")
+
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    with open(infn, "r") as inf:
+        in_data = inf.readlines()
+
+    outf = open(outfn, "w")
+
+    print(in_data[0].rstrip().split(","))
+
+    outf.write("VarName,DiffAG,DiffFWS,DiffMI,NumDaysBlw,NumDaysViolated,AntiochNumDaysBlw,AntiochNumDaysViolated,TotNumDays_D1641AG,TotNumDays_D1641FWS,TotNumDays_D1641MI\n")
+    date_ind = in_data[0].rstrip().split(",").index("Date")
+    wyt_ind = in_data[0].rstrip().split(",").index("SAC INDEX")
+    diff_ag_ind = in_data[0].rstrip().split(",").index("DiffAG")
+    diff_fws_ind = in_data[0].rstrip().split(",").index("DiffFWS")
+    diff_mi_ind = in_data[0].rstrip().split(",").index("DiffMI")
+    mi_numdaysblw_ind = in_data[0].rstrip().split(",").index("NumDaysBlw")
+    mi_numdaysstandard_ind = in_data[0].rstrip().split(",").index("D1641MIDNumDays")
+    mi_numdaysvio_ind = in_data[0].rstrip().split(",").index("NumDaysViolated")
+    antioch_numdaysblw_ind = in_data[0].rstrip().split(",").index("AntiochNumDaysBlw")
+    antioch_numdaysvio_ind = in_data[0].rstrip().split(",").index("AntiochNumDaysViolated")
+
+    for i, x in enumerate(in_data):
+        if in_data[i] == '\n': continue
+        if i == 0: continue
+        if i == 1:
+            diff_ag = 0
+            diff_ag_arr = []
+            diff_ag_date_arr = []
+            diff_ag_wyt_arr = []
+            diff_fws = 0
+            diff_fws_arr = []
+            diff_fws_date_arr = []
+            diff_fws_wyt_arr = []
+            diff_mi = 0
+            diff_mi_arr = []
+            diff_mi_date_arr = []
+            diff_mi_wyt_arr = []
+            mi_numdaysblw_arr = []
+            mi_numdaysblw = 0
+            mi_numdaysvio = 0
+            antioch_numdaysblw = 0
+            antioch_numdaysvio = 0
+            VarNamePrev = in_data[i].split(",")[0]
+            VarName = in_data[i].split(",")[0]
+            TotNumDays_D1641AG = 0
+            TotNumDays_D1641FWS = 0
+            TotNumDays_D1641MI = 0
+        if i == (len(in_data) - 1):
+            if in_data[i].rstrip().split(",")[diff_ag_ind] != "NA":
+                TotNumDays_D1641AG += 1
+                diff_ag_arr.append(float(in_data[i].rstrip().split(",")[diff_ag_ind]))
+                if float(in_data[i].rstrip().split(",")[diff_ag_ind]) > 0:
+                    diff_ag_date_arr.append(in_data[i].rstrip().split(",")[date_ind])
+                    diff_ag_wyt_arr.append(in_data[i].rstrip().split(",")[wyt_ind])
+                    diff_ag += 1
+            if in_data[i].rstrip().split(",")[diff_fws_ind] != "NA":
+                TotNumDays_D1641FWS += 1
+                diff_fws_arr.append(float(in_data[i].rstrip().split(",")[diff_fws_ind]))
+                if float(in_data[i].rstrip().split(",")[diff_fws_ind]) > 0:
+                    diff_fws_date_arr.append(in_data[i].rstrip().split(",")[date_ind])
+                    diff_fws_wyt_arr.append(in_data[i].rstrip().split(",")[wyt_ind])
+                    diff_fws += 1
+            if in_data[i].rstrip().split(",")[diff_mi_ind] != "NA":
+                TotNumDays_D1641MI += 1
+                diff_mi_arr.append(float(in_data[i].rstrip().split(",")[diff_mi_ind]))
+                if float(in_data[i].rstrip().split(",")[diff_mi_ind]) > 0:
+                    diff_mi_date_arr.append(in_data[i].rstrip().split(",")[date_ind])
+                    diff_mi_wyt_arr.append(in_data[i].rstrip().split(",")[wyt_ind])
+                    diff_mi += 1
+            if in_data[i].rstrip().split(",")[mi_numdaysblw_ind] != "NA":
+                # if float(in_data[i].rstrip().split(",")[mi_numdaysblw_ind]) > 0:
+                mi_numdaysblw += 1
+                mi_numdaysblw_arr.append(float(in_data[i].rstrip().split(",")[mi_numdaysblw_ind]) - float(in_data[i].rstrip().split(",")[mi_numdaysstandard_ind]))
+            if in_data[i].rstrip().split(",")[mi_numdaysvio_ind] != "NA":
+                if float(in_data[i].rstrip().split(",")[mi_numdaysvio_ind]) > 0: mi_numdaysvio += 1
+            if in_data[i].rstrip().split(",")[antioch_numdaysblw_ind] != "NA":
+                if float(in_data[i].rstrip().split(",")[antioch_numdaysblw_ind]) > 0: antioch_numdaysblw += 1
+            if in_data[i].rstrip().split(",")[antioch_numdaysvio_ind] != "NA":
+                if float(in_data[i].rstrip().split(",")[antioch_numdaysvio_ind]) > 0: antioch_numdaysvio += 1
+            print(VarNamePrev, diff_ag, diff_fws, diff_mi, mi_numdaysblw, mi_numdaysvio, antioch_numdaysblw, antioch_numdaysvio, TotNumDays_D1641AG, TotNumDays_D1641FWS, TotNumDays_D1641MI)
+            outf.write(VarNamePrev + "," + str(diff_ag) + "," + str(diff_fws) + "," + str(diff_mi) + "," + str(mi_numdaysblw) + "," + str(mi_numdaysvio) + "," + str(antioch_numdaysblw) + "," + str(
+                antioch_numdaysvio) + "," + str(TotNumDays_D1641AG) + "," + str(TotNumDays_D1641FWS) + "," + str(TotNumDays_D1641MI) + "\n")
+            if len(diff_ag_arr) > 0:
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641AG_Dates.csv", "w") as date_file:
+                    for j in range(len(diff_ag_date_arr)): date_file.write(str(diff_ag_date_arr[j]) + "," + str(diff_ag_wyt_arr[j]) + "\n")
+                diff_ag_arr.sort()
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641AG_Percentile.csv", "w") as percent_file:
+                    for j in range(100):
+                        percent_file.write(str(j + 1) + "," + str(percentile(diff_ag_arr, float(j + 1) / 100.0)) + "\n")
+            if len(diff_fws_arr) > 0:
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641FWS_Dates.csv", "w") as date_file:
+                    for j in range(len(diff_fws_date_arr)): date_file.write(str(diff_fws_date_arr[j]) + "," + str(diff_fws_wyt_arr[j]) + "\n")
+                diff_fws_arr.sort()
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641FWS_Percentile.csv", "w") as percent_file:
+                    for j in range(100):
+                        percent_file.write(str(j + 1) + "," + str(percentile(diff_fws_arr, float(j + 1) / 100.0)) + "\n")
+            if len(diff_mi_arr) > 0:
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641MI_Dates.csv", "w") as date_file:
+                    for j in range(len(diff_mi_date_arr)): date_file.write(str(diff_mi_date_arr[j]) + "," + str(diff_mi_wyt_arr[j]) + "\n")
+                diff_mi_arr.sort()
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641MI_Percentile.csv", "w") as percent_file:
+                    for j in range(100):
+                        percent_file.write(str(j + 1) + "," + str(percentile(diff_mi_arr, float(j + 1) / 100.0)) + "\n")
+            if len(mi_numdaysblw_arr) > 0:
+                mi_numdaysblw_arr = [float(i) for i in mi_numdaysblw_arr]
+                mi_numdaysblw_arr.sort()
+                with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641MI_Days_Percentile.csv", "w") as percent_file:
+                    for j in range(100):
+                        percent_file.write(str(j + 1) + "," + str(percentile(mi_numdaysblw_arr, float(j + 1) / 100.0)) + "\n")
+
+        else:
+            VarName = in_data[i].split(",")[0]
+            if VarName != VarNamePrev:
+                print(VarName)
+                print(VarNamePrev, diff_ag, diff_fws, diff_mi, mi_numdaysblw, mi_numdaysvio, antioch_numdaysblw, antioch_numdaysvio, TotNumDays_D1641AG, TotNumDays_D1641FWS, TotNumDays_D1641MI)
+                outf.write(
+                    VarNamePrev + "," + str(diff_ag) + "," + str(diff_fws) + "," + str(diff_mi) + "," + str(mi_numdaysblw) + "," + str(mi_numdaysvio) + "," + str(antioch_numdaysblw) + "," + str(
+                        antioch_numdaysvio) + "," + str(TotNumDays_D1641AG) + "," + str(TotNumDays_D1641FWS) + "," + str(TotNumDays_D1641MI) + "\n")
+                print("agg_arr")
+                if len(diff_ag_arr) > 0:
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641AG_Dates.csv", "w") as date_file:
+                        for j in range(len(diff_ag_date_arr)): date_file.write(str(diff_ag_date_arr[j]) + "," + str(diff_ag_wyt_arr[j]) + "\n")
+                    diff_ag_arr.sort()
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641AG_Percentile.csv", "w") as percent_file:
+                        for j in range(100):
+                            percent_file.write(str(j + 1) + "," + str(percentile(diff_ag_arr, float(j + 1) / 100.0)) + "\n")
+                print("fws_arr")
+                if len(diff_fws_arr) > 0:
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641FWS_Dates.csv", "w") as date_file:
+                        for j in range(len(diff_fws_date_arr)): date_file.write(str(diff_fws_date_arr[j]) + "," + str(diff_fws_wyt_arr[j]) + "\n")
+                    diff_fws_arr.sort()
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641FWS_Percentile.csv", "w") as percent_file:
+                        for j in range(100):
+                            percent_file.write(str(j + 1) + "," + str(percentile(diff_fws_arr, float(j + 1) / 100.0)) + "\n")
+                print("mi_arr")
+                if len(diff_mi_arr) > 0:
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641MI_Dates.csv", "w") as date_file:
+                        for j in range(len(diff_mi_date_arr)): date_file.write(str(diff_mi_date_arr[j]) + "," + str(diff_mi_wyt_arr[j]) + "\n")
+                    diff_mi_arr.sort()
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641MI_Percentile.csv", "w") as percent_file:
+                        for j in range(100):
+                            percent_file.write(str(j + 1) + "," + str(percentile(diff_mi_arr, float(j + 1) / 100.0)) + "\n")
+                print("mid_arr")
+                print(mi_numdaysblw_arr)
+                if len(mi_numdaysblw_arr) > 0:
+                    mi_numdaysblw_arr = [float(i) for i in mi_numdaysblw_arr]
+                    print(mi_numdaysblw_arr)
+                    mi_numdaysblw_arr.sort()
+                    with open(out_dir + VarNamePrev + "_" + scen_nm + "_D1641MI_Days_Percentile.csv", "w") as percent_file:
+                        for j in range(100):
+                            percent_file.write(str(j + 1) + "," + str(percentile(mi_numdaysblw_arr, float(j + 1) / 100.0)) + "\n")
+
+                diff_ag = 0
+                diff_ag_arr = []
+                diff_ag_date_arr = []
+                diff_ag_wyt_arr = []
+                diff_fws = 0
+                diff_fws_arr = []
+                diff_fws_date_arr = []
+                diff_fws_wyt_arr = []
+                diff_mi = 0
+                diff_mi_arr = []
+                diff_mi_date_arr = []
+                diff_mi_wyt_arr = []
+                mi_numdaysblw_arr = []
+                mi_numdaysblw = 0
+                mi_numdaysvio = 0
+                antioch_numdaysblw = 0
+                antioch_numdaysvio = 0
+                TotNumDays_D1641AG = 0
+                TotNumDays_D1641FWS = 0
+                TotNumDays_D1641MI = 0
+            if in_data[i].rstrip().split(",")[diff_ag_ind] != "NA":
+                TotNumDays_D1641AG += 1
+                diff_ag_arr.append(float(in_data[i].rstrip().split(",")[diff_ag_ind]))
+                if float(in_data[i].rstrip().split(",")[diff_ag_ind]) > 0:
+                    diff_ag_date_arr.append(in_data[i].rstrip().split(",")[date_ind])
+                    diff_ag_wyt_arr.append(in_data[i].rstrip().split(",")[wyt_ind])
+                    diff_ag += 1
+            if in_data[i].rstrip().split(",")[diff_fws_ind] != "NA":
+                TotNumDays_D1641FWS += 1
+                diff_fws_arr.append(float(in_data[i].rstrip().split(",")[diff_fws_ind]))
+                if float(in_data[i].rstrip().split(",")[diff_fws_ind]) > 0:
+                    diff_fws_date_arr.append(in_data[i].rstrip().split(",")[date_ind])
+                    diff_fws_wyt_arr.append(in_data[i].rstrip().split(",")[wyt_ind])
+                    diff_fws += 1
+            if in_data[i].rstrip().split(",")[diff_mi_ind] != "NA":
+                TotNumDays_D1641MI += 1
+                diff_mi_arr.append(float(in_data[i].rstrip().split(",")[diff_mi_ind]))
+                if float(in_data[i].rstrip().split(",")[diff_mi_ind]) > 0:
+                    diff_mi_date_arr.append(in_data[i].rstrip().split(",")[date_ind])
+                    diff_mi_wyt_arr.append(in_data[i].rstrip().split(",")[wyt_ind])
+                    diff_mi += 1
+            if in_data[i].rstrip().split(",")[mi_numdaysblw_ind] != "NA":
+                # if float(in_data[i].rstrip().split(",")[mi_numdaysblw_ind]) > 0:
+                mi_numdaysblw += 1
+                mi_numdaysblw_arr.append(float(in_data[i].rstrip().split(",")[mi_numdaysblw_ind]) - float(in_data[i].rstrip().split(",")[mi_numdaysstandard_ind]))
+            if in_data[i].rstrip().split(",")[mi_numdaysvio_ind] != "NA":
+                if float(in_data[i].rstrip().split(",")[mi_numdaysvio_ind]) > 0: mi_numdaysvio += 1
+            if in_data[i].rstrip().split(",")[antioch_numdaysblw_ind] != "NA":
+                if float(in_data[i].rstrip().split(",")[antioch_numdaysblw_ind]) > 0: antioch_numdaysblw += 1
+            if in_data[i].rstrip().split(",")[antioch_numdaysvio_ind] != "NA":
+                if float(in_data[i].rstrip().split(",")[antioch_numdaysvio_ind]) > 0: antioch_numdaysvio += 1
+            VarNamePrev = VarName
+
+    outf.close()
+
+def combine_all_runs(studies, percentile_files):
+    data = []
+    flag = 0
+    header = []
+
+    for study in studies:
+        for file in percentile_files:
+            if study in file:
+                with open("./water_qual_csvs/_Percentiles/" + file, "r") as inf:
+                    in_data = inf.readlines()
+                if "AG_" in file:
+                    comp = "AG"
+                elif "FWS_" in file:
+                    comp = "FWS"
+                elif "MI_Percentile" in file:
+                    comp = "MI"
+                elif "Days" in file:
+                    comp = "MI_Days"
+                if flag == 0:
+                    header.append("Percentile")
+                    header.append(study + "_" + file.split("_")[0] + "_" + comp)
+                    col = []
+                    for line in in_data:
+                        col.append(line.rstrip().split(",")[0])
+                    data.append(col)
+                    col = []
+                    for line in in_data:
+                        col.append(line.rstrip().split(",")[1])
+                    data.append(col)
+                    flag = 1
+                else:
+                    if file.split("_")[0] == "OLDR" and file.split("_")[1] == "MIDR":
+                        header.append(study + "_" + file.split("_")[0] + "_" + file.split("_")[1] + "_" + comp)
+                        col = []
+                        for line in in_data:
+                            col.append(line.rstrip().split(",")[1])
+                        data.append(col)
+                    else:
+                        header.append(study + "_" + file.split("_")[0] + "_" + comp)
+                        col = []
+                        for line in in_data:
+                            col.append(line.rstrip().split(",")[1])
+                        data.append(col)
+
+    final_data_frame = pd.DataFrame(data).transpose()
+    final_data_frame.columns = header
+    return final_data_frame
 
 if __name__ == '__main__':
     # Set working directory to the script's location
@@ -894,4 +1181,21 @@ if __name__ == '__main__':
     for model_path in path_names:
         print(f"Processing model: {model_path}")
         get_dsm2_timeseries_data(model_path)
+
+    # get the study names
+    studies = [study.split(".")[0] for study in path_names]
+
+    # loop through and call the combine percentiles function
+    for study_name in studies:
+        combine_percentiles(study_name)
+
+    # get the percentile files that were created
+    percentile_files = []
+
+    for file in os.listdir("./water_qual_csvs/_Percentiles/"):
+        if "Percentile" in file: percentile_files.append(file)
+
+    # call the function to combine them
+    final_data_frame = combine_all_runs(studies, percentile_files)
+    print(final_data_frame.to_string())
 
