@@ -12,6 +12,16 @@ import datetime
 from pydsstools.heclib.dss import HecDss
 import numpy as np
 import math
+import matplotlib.pyplot as plt
+import docx
+from docx.enum.style import WD_STYLE_TYPE
+from docx.shared import Pt, RGBColor
+from docx_caption_formatter import add_caption_byfield
+from EISAppendixGen_functions import *
+import subprocess
+
+from scripts.docx_caption_formatter import add_caption_water_supply
+
 
 def get_stations():
     # Define the path to the stations directory
@@ -1162,9 +1172,78 @@ def combine_all_runs(studies, percentile_files):
 
     final_data_frame = pd.DataFrame(data).transpose()
     final_data_frame.columns = header
+    final_data_frame = final_data_frame.apply(pd.to_numeric)
+
     return final_data_frame
 
+def create_water_qual_plot(df_percentiles, fig_value, plot_directory, alts, line_styles, line_colors, d_ymin, d_ymax):
+    # Check for/create directory to store monthly exceedance plots
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+
+    # define size and borders
+    fig, axs = plt.subplots(figsize=(9, 5.5), linewidth=3, edgecolor="black")
+
+    for fig_index, display_name in enumerate(alts):
+
+        model_name = alts[display_name].split('.')[0]
+        # Dataset for this alt
+        df_alt_data = df_percentiles[['Percentile', model_name+'_'+fig_value]]
+
+        # plot exceedance probability vs monthly EC
+        percentages = range(0, 101, 10)
+        percentage_labels = [f"{int(i)}%" for i in percentages]
+
+        axs.plot(df_alt_data['Percentile'].values, df_alt_data[model_name+'_'+fig_value].values, color=line_colors[fig_index],
+                 linestyle=line_styles[fig_index], label=display_name)
+        axs.set_xticks(percentages)
+        axs.set_xticklabels(percentage_labels)
+
+        # set the Y axis depending on if its chloride or EC
+        if fig_value.split('_')[-1] == 'MI':
+            axs.set_ylabel("Difference in Chloride (Scenario minus Standard) (mg/L)")
+        else:
+            axs.set_ylabel("Difference in EC (Scenario minus Standard) (mmhos/cm)")
+        axs.set_xlabel("Probability of Compliance (%)")
+
+        # set the y limits
+        axs.set_ylim(d_ymin, d_ymax)
+
+        # Save this parameter to orient the legend correctly
+        axbox = axs.get_position()
+
+        # Add gridlines
+        plt.grid(color='gray', linestyle='--', linewidth=0.8)
+
+        # Add a legend
+        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+
+    # flip x-axis
+    axs.invert_xaxis()
+
+    plt.savefig(plot_directory + "/" + fig_value + "_exceedance" + ".png")
+
+    plt.close()
+
+    return plot_directory + "/" + fig_value + "_exceedance" + ".png"
+
+def get_wq_location_data():
+    crosswalk = pd.read_excel("../inputs/location_code_crosswalk_water_quality.xlsx")
+    crosswalk.drop(columns="Model", inplace=True)
+    return crosswalk
+
 if __name__ == '__main__':
+
+    scenario_names = {'NAA':"NAA_2022Med_090723_EC_p.dss",
+                      # "ALT1":, "Alt2woTUCPwoVA", "Alt2wTUCPwoVA", "Alt2woTUCPDeltaVA", "Alt2woTUCPAllVA", "ALT3", "ALT4", "Action 5"
+    }
+
+    template = r"..\inputs\template_v2-fonts.docx"
+    doc_name = rf"C:\Users\fnufferrodriguez\temp_appendix.docx"
+    # Name of final word doc
+    new_doc = rf"C:\Users\fnufferrodriguez\Attachment_2-08_Water_Quality_Compliance.docx"
+
     # Set working directory to the script's location
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
@@ -1178,16 +1257,16 @@ if __name__ == '__main__':
     print(path_names)
 
     # Loop through each model directory and call the processing function
-    for model_path in path_names:
-        print(f"Processing model: {model_path}")
-        get_dsm2_timeseries_data(model_path)
+    # for model_path in path_names:
+    #     print(f"Processing model: {model_path}")
+    #     get_dsm2_timeseries_data(model_path)
 
     # get the study names
     studies = [study.split(".")[0] for study in path_names]
 
     # loop through and call the combine percentiles function
-    for study_name in studies:
-        combine_percentiles(study_name)
+    # for study_name in studies:
+    #     combine_percentiles(study_name)
 
     # get the percentile files that were created
     percentile_files = []
@@ -1197,5 +1276,71 @@ if __name__ == '__main__':
 
     # call the function to combine them
     final_data_frame = combine_all_runs(studies, percentile_files)
-    print(final_data_frame.to_string())
 
+    df_location_info = get_wq_location_data()
+
+    alt_text = []
+
+    # set up the document
+    appendix_prefix = " F.2.8"
+    template = r"..\inputs\template_v2-fonts.docx"
+    doc = docx.Document(template)
+    doc.add_heading(f"Attachment{appendix_prefix}", level=1)
+
+    # Add caption style for Figure captions
+    obj_styles = doc.styles
+    obj_charstyle = obj_styles.add_style('Figure Caption', WD_STYLE_TYPE.PARAGRAPH)
+    obj_font = obj_charstyle.font
+    obj_font.size = Pt(12)
+    obj_font.color.rgb = RGBColor(0, 0, 0)
+    obj_font.name = 'Times New Roman'
+
+    s_plot_directory = "./wq_plots"
+    line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g", 'c']
+    line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"]
+
+    for index, location in df_location_info.iterrows():
+        s_plot_path = create_water_qual_plot(final_data_frame, location['VarName'], s_plot_directory, scenario_names, line_styles, line_colors, location['Ymin'], location['Ymax'])
+        s_fig_caption = 'D1641 ' + location['VarName'].split('_')[-1] + ' ' + location['Location (Title)'] + ' Compliance Exceedance Plot'
+
+        if index == 0:
+            change_orientation(doc, "landscape")
+
+        # Add figure as a picture
+        o_fig = doc.add_picture(s_plot_path)
+
+        # Generate fig title
+        fig_title_prefix = "Figure " + appendix_prefix + "-"
+
+        # Add title below figure
+        add_caption_water_supply(doc, "Figure", fig_title_prefix, s_fig_caption, custom_style="Figure Caption")
+
+        # Add to alt text
+        alt_text.append(s_fig_caption)
+
+        if index != len(df_location_info) - 1:
+            doc.add_page_break()
+
+    doc.save(doc_name)
+
+    # Format alt text for all figures as one string to be passed to vbs
+    alt_text_string_figures = ("+").join(alt_text)
+    alt_text_string_figures = alt_text_string_figures.replace(" ", "_")
+
+
+
+    # Run vbs script
+    # Arguments are existing document, new document to be saved to, alt text for all tables, number of tables, alt text for all figures, number of figures
+    # This will fail if Microsoft Word has document open in the background
+    # try opening Task Manager and Ending MS Word Background Task, then rerun
+
+    # Call the vbs script for figure alt text
+    result = subprocess.call(
+        "cscript.exe add_alt_text.vbs " + doc_name + " " + new_doc + " " + "x" + " " + str(0) + " " + alt_text_string_figures + " " + str(len(df_location_info)))
+
+    # Remove temporary doc if process ran successfully
+    if result == 1:
+        print("VBS script did not run successfully. Try using task manager to end MS Word Background Task and then rerun")
+    else:
+        # Instructions on how to finish formatting numbered captions.
+        print("After running this script, \n1. Open Word file and Ctrl+A to select all. Then F9 to update caption numbering.")
