@@ -16,14 +16,20 @@ import matplotlib.pyplot as plt
 import docx
 from docx.enum.style import WD_STYLE_TYPE
 from docx.shared import Pt, RGBColor
-from docx_caption_formatter import add_caption_byfield
+from docx_caption_formatter import add_caption_water_supply
 from EISAppendixGen_functions import *
 import subprocess
 
-from scripts.docx_caption_formatter import add_caption_water_supply
-
 
 def get_stations():
+    """
+    Gets the stations for the compliance locations. These are the DSS b parts.
+    Returns
+    -------
+    stations: list
+    List of stations
+    """
+
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -47,6 +53,14 @@ def get_stations():
 
 
 def get_locations():
+    """
+    Gets the location names for the compliance locations
+    Returns
+    -------
+    stations: list
+    List of location names
+    """
+
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -70,6 +84,14 @@ def get_locations():
 
 
 def get_stats():
+    """
+    Gets the statistics for the compliance locations. (MIN or MAX or MEAN etc)
+    Returns
+    -------
+    stations: list
+    List of stats
+    """
+
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -93,6 +115,14 @@ def get_stats():
 
 
 def get_sri_current_condition():
+    """
+    Gets the dataframe of sac river index data
+    Returns
+    -------
+    df_sri: dataframe
+    dataframe of sac river index data for each year
+    """
+
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -100,20 +130,33 @@ def get_sri_current_condition():
     fpaths = [os.path.join(stations_dir, fname) for fname in os.listdir(stations_dir)]
     fnames = os.listdir(stations_dir)
 
-    wyts_df = None
+    df_sri = None
 
     # Look for the SacRiverIndex.csv file
     for j in range(len(fnames)):
         if fnames[j] == "SacRiverIndex.csv":
             print("\nFound file:", fnames[j])
-            wyts_df = pd.read_csv(fpaths[j], header=0, sep=",")
+            df_sri = pd.read_csv(fpaths[j], header=0, sep=",")
             print("\n")
             break  # Exit loop once the file is found
 
-    return wyts_df
+    return df_sri
 
 
 def get_wyts(s_wyt_path):
+    """
+    Gets the water year type for each year depending on the given file name
+    Parameters
+    ----------
+    s_wyt_path: str
+        Name of wyt file
+
+    Returns
+    -------
+    wyts_df: dataframe
+        dataframe of water year type for each year depending on the given file name
+    """
+
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -132,24 +175,19 @@ def get_wyts(s_wyt_path):
     return wyts_df
 
 
-def get_wyts_current_condition():
-    # Define the path to the directory
-    dir_path = "../inputs/stations"
-
-    # List all files in the directory
-    fnames = os.listdir(dir_path)
-    fpaths = [os.path.join(dir_path, fname) for fname in fnames]
-
-    # Search for the target file
-    for fname, fpath in zip(fnames, fpaths):
-        if fname == "WYT_CurrentConditions.csv":
-            print("\nFound file:", fname)
-            wyts_df = pd.read_csv(fpath, )
-            print()
-            return wyts_df
-
-
 def get_specified_table(s_csv_name):
+    """
+    Reads in the specified csv file and returns a dataframe
+    Parameters
+    ----------
+    s_csv_name: str
+        Name of csv file
+
+    Returns
+    -------
+    std_df: dataframe
+        Dataframe of data from the specified csv file
+    """
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -169,6 +207,19 @@ def get_specified_table(s_csv_name):
 
 
 def get_dsm2_timeseries_data(file_path):
+    """
+    Function to do the main work for the water quality compliance appendix.
+    This will read in the DSS file and all the needed compliance info and create two csvs with the output data.
+
+    Parameters
+    ----------
+    file_path: str
+        Path to the DSS file
+
+    Returns
+    -------
+    None
+    """
 
     # Construct the path to the model's directory
     file_path = os.path.join("..", "studies", file_path)
@@ -230,11 +281,11 @@ def get_dsm2_timeseries_data(file_path):
         tsfilename = os.path.join(outfile_location, tsfilename)
 
         # Open the file for writing
-        with open(tsfilename, 'w') as tsfile:
-            # Write the header line
-            header = "Var Name,Location,Var type,Date,ValueEC,ValueCl,Study Scenario,Study Type,UnitsEC,UnitsCl,D1641AG,D1641FWS,D1641MI,D1641MIDNumDays,D1641MIDThreshold,MIAntiochNumDays,MIAntiochThreshold,MIOther,SAC INDEX\n"
-
-            tsfile.write(header)
+        # with open(tsfilename, 'w') as tsfile:
+        #     # Write the header line
+        #     header = "Var Name,Location,Var type,Date,ValueEC,ValueCl,Study Scenario,Study Type,UnitsEC,UnitsCl,D1641AG,D1641FWS,D1641MI,D1641MIDNumDays,D1641MIDThreshold,MIAntiochNumDays,MIAntiochThreshold,MIOther,SAC INDEX\n"
+        #
+        #     tsfile.write(header)
 
         nd_flags = []
 
@@ -896,29 +947,49 @@ def get_dsm2_timeseries_data(file_path):
         f.write(','.join(custom_header) + '\n')
         df_pre.to_csv(f, index=False, header=False, na_rep='NA')
 
-def percentile(N, percent, key=lambda x:x):
+def percentile(dl_values, percent, key=lambda x:x):
     """
     Find the percentile of a list of values.
 
-    @parameter N - is a list of values. Note N MUST BE already sorted.
-    @parameter percent - a float value from 0.0 to 1.0.
-    @parameter key - optional key function to compute value from each element of N.
+    Parameters
+    ----------
+    dl_values: list
+        list of values to get the value from. Note this MUST BE already sorted.
+    percent: float
+        a float value from 0.0 to 1.0. The percentile we want to find
+    key: function
+        optional key function to compute value from each element of dl_values
 
-    @return - the percentile of the values
+    Returns
+    -------
+    the percentile of the values
     """
-    if not N:
+
+    if not dl_values:
         return None
-    k = (len(N)-1) * percent
+    k = (len(dl_values) - 1) * percent
     f = math.floor(k)
     c = math.ceil(k)
     if f == c:
-        return key(N[int(k)])
-    d0 = key(N[int(f)]) * (c-k)
-    d1 = key(N[int(c)]) * (k-f)
+        return key(dl_values[int(k)])
+    d0 = key(dl_values[int(f)]) * (c - k)
+    d1 = key(dl_values[int(c)]) * (k - f)
     return d0+d1
 
 
 def combine_percentiles(scen_nm):
+    """
+    Calculates the percentiles for all of the compliance locations. For each compliance point ranks the values from the get_dsm2_timeseries_data output.
+    Write out a _Percentiles.csv file for each location. Also writes a _Dates.csv for each and a compliance summary for the scenario
+    Parameters
+    ----------
+    scen_nm: str
+        name of the scenario
+
+    Returns
+    -------
+    None
+    """
 
     infn = "./water_qual_csvs/DSM2ComplianceDiffData_" + scen_nm + ".csv"
     outfn = "./water_qual_csvs/_ComplianceSummary/DSM2ComplianceSummary_" + scen_nm + ".csv"
@@ -1136,6 +1207,21 @@ def combine_percentiles(scen_nm):
     outf.close()
 
 def combine_all_runs(studies, percentile_files):
+    """
+    Combines the outputs from the combine_percentiles function's _Percentile cvs into one csv file that is used for the plots.
+    Parameters
+    ----------
+    studies: list
+        The different studies/alternatives to combine
+    percentile_files:
+        All of the csv files ending in _Percentile. These have the percentile data
+
+    Returns
+    -------
+    final_data_frame: dataframe
+        The combined dataframe
+    """
+
     data = []
     flag = 0
     header = []
@@ -1186,6 +1272,31 @@ def combine_all_runs(studies, percentile_files):
     return final_data_frame
 
 def create_water_qual_plot(df_percentiles, fig_value, plot_directory, alts, line_styles, line_colors, d_ymin, d_ymax):
+    """
+    Creates the plot of the probability of compliance. Write the plot to a file but returns the path.
+    Parameters
+    ----------
+    df_percentiles: dataframe
+        Data frame of all of the data
+    fig_value: str
+        Value to plot
+    plot_directory: str
+        path to the folder to hold the plots
+    alts: dict
+        Dictionary of alternatives and names to show on plot
+    line_styles: list
+        List of line styles to show on plot
+    line_colors: list
+        List of line colors to show on plot
+    d_ymin: float
+        y axis minimum
+    d_ymax: float
+        y axis maximum
+
+    Returns
+    -------
+    Path to the plot
+    """
     # Check for/create directory to store monthly exceedance plots
     if not os.path.exists(plot_directory):
         os.makedirs(plot_directory)
@@ -1244,14 +1355,32 @@ def get_wq_location_data():
 
 if __name__ == '__main__':
 
+    # this dictionary should hold the display name and the full DSS file for each alternative in the order you want them displayed
+    # all of these dss files should be in the studies folder
+    # note that the hydrology should be in the name (ex: '2022MED')
+    # ex: {'NAA':"NAA_2022Med_090723_EC_p.dss",.... }
     scenario_names = {'NAA':"NAA_2022Med_090723_EC_p.dss",
-                      # "ALT1":, "Alt2woTUCPwoVA", "Alt2wTUCPwoVA", "Alt2woTUCPDeltaVA", "Alt2woTUCPAllVA", "ALT3", "ALT4", "Action 5"
+                      "ALT1":"ALT1_2022Med_090923_EC_p.dss",
+                      "Alt2woTUCPwoVA": "ALT2v1_woTUCP_2022Med_091324_EC_p.dss",
+                      "Alt2wTUCPwoVA": "ALT2v1_wTUCP_2022Med_091324_EC_p.dss",
+                      "Alt2woTUCPDeltaVA": "ALT2v2_woTUCP_2022Med_091324_EC_p.dss",
+                      "Alt2woTUCPAllVA": "ALT2v3_woTUCP_2022Med_091324_EC_p.dss",
+                      "ALT3": "ALT3_2022Med_101323_EC_p.dss",
+                      "ALT4": "ALT4_2022MED_091624_EC_p.dss",
+                      "Action 5": "ALT5_wTUCP_2022Med_052125_EC_p.dss"
     }
 
+    # this is the template for the Word doc, generally doesn't need to change
     template = r"..\inputs\template_v2-fonts.docx"
+
+    # name of the temporary document, needs to have no spaces so no OneDrive
     doc_name = rf"C:\Users\fnufferrodriguez\temp_appendix.docx"
-    # Name of final word doc
+
+    # Name of final word doc, needs to have no spaces so no OneDrive
     new_doc = rf"C:\Users\fnufferrodriguez\Attachment_2-08_Water_Quality_Compliance.docx"
+
+    # if you want to change what plots are plotted, you can change them in inputs\location_code_crosswalk_water_quality.xlsx
+    ####END OF USER INPUTS #######
 
     # Set working directory to the script's location
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1266,16 +1395,16 @@ if __name__ == '__main__':
     print(path_names)
 
     # Loop through each model directory and call the processing function
-    # for model_path in path_names:
-    #     print(f"Processing model: {model_path}")
-    #     get_dsm2_timeseries_data(model_path)
+    for model_path in path_names:
+        print(f"Processing model: {model_path}")
+        get_dsm2_timeseries_data(model_path)
 
     # get the study names
     studies = [study.split(".")[0] for study in path_names]
 
     # loop through and call the combine percentiles function
-    # for study_name in studies:
-    #     combine_percentiles(study_name)
+    for study_name in studies:
+        combine_percentiles(study_name)
 
     # get the percentile files that were created
     percentile_files = []
@@ -1286,6 +1415,7 @@ if __name__ == '__main__':
     # call the function to combine them
     final_data_frame = combine_all_runs(studies, percentile_files)
 
+    # get the
     df_location_info = get_wq_location_data()
 
     alt_text = []
@@ -1347,7 +1477,7 @@ if __name__ == '__main__':
     result = subprocess.call(
         "cscript.exe add_alt_text.vbs " + doc_name + " " + new_doc + " " + "x" + " " + str(0) + " " + alt_text_string_figures + " " + str(len(df_location_info)))
 
-    # Remove temporary doc if process ran successfully
+    # check if it worked successfully
     if result == 1:
         print("VBS script did not run successfully. Try using task manager to end MS Word Background Task and then rerun")
     else:
