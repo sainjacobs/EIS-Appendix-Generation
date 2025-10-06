@@ -113,7 +113,7 @@ def get_sri_current_condition():
     return wyts_df
 
 
-def get_wyts_2022():
+def get_wyts(s_wyt_path):
     # Define the path to the stations directory
     stations_dir = "../inputs/stations"
 
@@ -125,7 +125,7 @@ def get_wyts_2022():
 
     # Look for the WYT_2022MED.csv file
     for j in range(len(fnames)):
-        if fnames[j] == "WYT_2022MED.csv":
+        if fnames[j] == s_wyt_path:
             wyts_df = pd.read_csv(fpaths[j], header=0, sep=",")
             break  # Exit loop once the file is found
 
@@ -177,13 +177,22 @@ def get_dsm2_timeseries_data(file_path):
 
     print("Model Name:", input_model_name)
 
-    if "2022" in input_model_name:
+
+    # get the WYT data based on the hydrology
+    if "2030" in input_model_name:
+        df_wyt = get_wyts("WYT_2030.csv")
+    elif "2070" in input_model_name:
+        df_wyt = get_wyts("WYT_2070.csv")
+    elif "2022" in input_model_name:
         df_sri = get_sri_current_condition()
-        df_wyt = get_wyts_2022()
+        df_wyt = get_wyts("WYT_2022MED.csv")
+    elif "Current" in input_model_name:
+        df_sri = get_sri_current_condition()
+        df_wyt = get_wyts("WYT_CurrentConditions.csv")
     else:
-        print('2022 not in name but still using')
+        print('Hydrology is undefined in study name, using current')
         df_sri = get_sri_current_condition()
-        df_wyt = get_wyts_2022()
+        df_wyt = get_wyts("WYT_CurrentConditions.csv")
 
     # Load csv files for compliance standards
     df_D1641AG = get_specified_table("D1641_AG.csv")
