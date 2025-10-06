@@ -281,11 +281,11 @@ def get_dsm2_timeseries_data(file_path):
         tsfilename = os.path.join(outfile_location, tsfilename)
 
         # Open the file for writing
-        # with open(tsfilename, 'w') as tsfile:
-        #     # Write the header line
-        #     header = "Var Name,Location,Var type,Date,ValueEC,ValueCl,Study Scenario,Study Type,UnitsEC,UnitsCl,D1641AG,D1641FWS,D1641MI,D1641MIDNumDays,D1641MIDThreshold,MIAntiochNumDays,MIAntiochThreshold,MIOther,SAC INDEX\n"
-        #
-        #     tsfile.write(header)
+        with open(tsfilename, 'w') as tsfile:
+            # Write the header line
+            header = "Var Name,Location,Var type,Date,ValueEC,ValueCl,Study Scenario,Study Type,UnitsEC,UnitsCl,D1641AG,D1641FWS,D1641MI,D1641MIDNumDays,D1641MIDThreshold,MIAntiochNumDays,MIAntiochThreshold,MIOther,SAC INDEX\n"
+
+            tsfile.write(header)
 
         nd_flags = []
 
@@ -341,38 +341,34 @@ def get_dsm2_timeseries_data(file_path):
             study_scenario = [input_model_name] * len(values)
             study_type = ["DSM2"] * len(values)
 
-            # Initialize lists to store results
-            wyts = []
-            wy_inds = []
-            prev_sri = []
-            curr_sri = []
+            # create this data frame to do some matching quicker than a loop
+            df_wyt_sri = pd.DataFrame({'Year': years, 'Month':months})
+            df_wyt_sri = df_wyt_sri.astype(int)
 
-            for year_index in range(len(years)):
-                if int(months[year_index]) < 10:
-                    wy = years[year_index]
+            # get the water year and the previous year
+            df_wyt_sri['WY'] = np.where(df_wyt_sri['Month'] < 10, df_wyt_sri['Year'], df_wyt_sri['Year']+1)
+            df_wyt_sri['Prev Year'] = df_wyt_sri['Year'] - 1
 
-                else:
-                    wy = str(int(years[year_index]) + 1)
+            # Merge with df_wyt on water year
+            df_wyt_sri = df_wyt_sri.merge(df_wyt.rename(columns={df_wyt.columns[1]: 'wy_ind', df_wyt.columns[2]: 'wyt'}),
+                          left_on='WY', right_on='YEAR', how='left')
 
-                # Look up water year type and index
-                wyt_row = df_wyt[df_wyt.iloc[:, 0] == int(wy)]
-                wyt = str(wyt_row.iloc[0, 2]) if not wyt_row.empty else None
-                wy_ind = float(wyt_row.iloc[0, 1]) if not wyt_row.empty else None
+            # Merge to get current SRI
+            df_wyt_sri = df_wyt_sri.merge(df_sri[[df_sri.columns[0], df_sri.columns[3]]].rename(columns={df_sri.columns[3]: 'curr_sri'}),
+                          left_on='Year', right_on='WaterYear', how='left')
 
-                # Look up previous and current SRI
-                p_sri_row = df_sri[df_sri.iloc[:, 0] == int(years[year_index]) - 1]
-                sri_row = df_sri[df_sri.iloc[:, 0] == int(years[year_index])]
+            # Merge to get previous SRI
+            df_wyt_sri = df_wyt_sri.merge(df_sri[[df_sri.columns[0], df_sri.columns[3]]].rename(columns={df_sri.columns[3]: 'prev_sri'}),
+                                          left_on='Prev Year', right_on='WaterYear', how='left')
 
-                p_sri = float(p_sri_row.iloc[0, 3]) if not p_sri_row.empty else None
-                sri = float(sri_row.iloc[0, 3]) if not sri_row.empty else None
+            # Extract final lists
+            wyts = df_wyt_sri['wyt'].tolist()
+            wy_inds = df_wyt_sri['wy_ind'].tolist()
+            prev_sri = df_wyt_sri['prev_sri'].tolist()
+            curr_sri = df_wyt_sri['curr_sri'].tolist()
 
-                # Append to lists
-                wyts.append(wyt)
-                wy_inds.append(wy_ind)
-                prev_sri.append(p_sri)
-                curr_sri.append(sri)
             # Append the last wyt value to the list
-            wyts.append(wyt)
+            wyts.append(wyts[-1])
             wyts = wyts[1:]
 
             # Print unique values
@@ -391,19 +387,9 @@ def get_dsm2_timeseries_data(file_path):
                 loc_comp_df = comp_df[comp_df["Var Name"] == out_statns[station_index]]
 
                 if not loc_comp_df.empty:
-                    if out_statns[station_index] == "RSAN007":
-                        if out_stats[station_index] == "MAX" and comp_names[compliance_index] == "MI Antioch":
-                            print(comp_names[compliance_index])
-                            comp_count[compliance_index] = 1
-                            loc_comp_dfs[compliance_index] = loc_comp_df
-                        elif out_stats[station_index] == "MEAN" and comp_names[compliance_index] != "MI Antioch":
-                            print(comp_names[compliance_index])
-                            comp_count[compliance_index] = 1
-                            loc_comp_dfs[compliance_index] = loc_comp_df
-                    else:
-                        print(comp_names[compliance_index])
-                        comp_count[compliance_index] = 1
-                        loc_comp_dfs[compliance_index] = loc_comp_df
+                    print(comp_names[compliance_index])
+                    comp_count[compliance_index] = 1
+                    loc_comp_dfs[compliance_index] = loc_comp_df
 
             # Loop through time series and set standard
             dates_copy = dates.copy()
@@ -459,26 +445,26 @@ def get_dsm2_timeseries_data(file_path):
                         cl_flag = 1
                         nd_flag = 1
 
-                        for year_index2 in range(len(years)):
-                            if year_index2 == 0:
-                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index2]]
+                        for year_index in range(len(years)):
+                            if year_index == 0:
+                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index]]
                                 NumDays = wyt_data["NumDays"].iloc[0]
                                 Threshold = wyt_data["Val1"].iloc[0]
                                 NumDays_next = NumDays
                                 Threshold_next = Threshold
 
-                                if int(months[year_index2]) < 10:
-                                    wy_prev = years[year_index2]
-                                    yr_prev = years[year_index2]
+                                if int(months[year_index]) < 10:
+                                    wy_prev = years[year_index]
+                                    yr_prev = years[year_index]
                                 else:
-                                    wy_prev = str(int(years[year_index2]) + 1)
-                                    yr_prev = years[year_index2]
+                                    wy_prev = str(int(years[year_index]) + 1)
+                                    yr_prev = years[year_index]
 
-                            yr = years[year_index2]
-                            wy = years[year_index2] if int(months[year_index2]) < 10 else str(int(years[year_index2]) + 1)
+                            yr = years[year_index]
+                            wy = years[year_index] if int(months[year_index]) < 10 else str(int(years[year_index]) + 1)
 
                             if wy != wy_prev:
-                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index2]]
+                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index]]
                                 NumDays_next = wyt_data["NumDays"].iloc[0] if not wyt_data.empty else np.nan
                                 Threshold_next = wyt_data["Val1"].iloc[0] if not wyt_data.empty else np.nan
                                 wy_prev = wy
@@ -511,14 +497,14 @@ def get_dsm2_timeseries_data(file_path):
                     else:
                         if std_nm == "D1641 MI":
                             cl_flag = 1
-                        for year_index2 in range(len(years)):
+                        for year_index in range(len(years)):
                             yr_count = 0
-                            if year_index2 == 0:
+                            if year_index == 0:
                                 # Reset deficiency flag
                                 def_flag = 0
 
                                 # Filter compliance data for the current water year index
-                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index2]]
+                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index]]
 
                                 # Parse start and end dates for each compliance window
 
@@ -536,30 +522,30 @@ def get_dsm2_timeseries_data(file_path):
                                 end_6 = datetime.datetime.strptime(wyt_data['End Date 6'].iloc[0], "%d-%b") if pd.notna(wyt_data['End Date 6'].iloc[0]) else None
 
                                 # Store previous year and water year index values
-                                year_prev = int(years[year_index2])
-                                wy_ind_prev = int(wy_inds[year_index2])
-                                wy_ind_prev2 = int(wy_inds[year_index2])
-                            year = years[year_index2]
+                                year_prev = int(years[year_index])
+                                wy_ind_prev = int(wy_inds[year_index])
+                                wy_ind_prev2 = int(wy_inds[year_index])
+                            year = years[year_index]
                             if int(year) != year_prev:
-                                print(f"\nYear: {years[year_index2]}")
+                                print(f"\nYear: {years[year_index]}")
                                 yr_count += 1
                                 def_flag = 0
 
                                 # Get new WYT data for this year
-                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index2]]
-                                print(f"WY index: {wy_inds[year_index2]}")
-                                print(f"Prev Sac River index: {prev_sri[year_index2]}\n")
+                                wyt_data = df_comp[df_comp["Sac Index Val"] == wy_inds[year_index]]
+                                print(f"WY index: {wy_inds[year_index]}")
+                                print(f"Prev Sac River index: {prev_sri[year_index]}\n")
 
                                 # Deficiency logic
-                                if wy_inds[year_index2] == 5 and wy_ind_prev >= 4:
+                                if wy_inds[year_index] == 5 and wy_ind_prev >= 4:
                                     def_flag = 1
-                                elif wy_inds[year_index2] == 4 and prev_sri[year_index2] < 11.35:
+                                elif wy_inds[year_index] == 4 and prev_sri[year_index] < 11.35:
                                     def_flag = 1
-                                elif wy_inds[year_index2] == 4 and wy_ind_prev >= 4 and wy_ind_prev2 == 5 and yr_count > 1:
+                                elif wy_inds[year_index] == 4 and wy_ind_prev >= 4 and wy_ind_prev2 == 5 and yr_count > 1:
                                     def_flag = 1
 
                                 # SJR FWS logic
-                                sjr_fws_flag = 1 if wy_inds[year_index2] == 4 and curr_sri[year_index2] < 8.1 else 0
+                                sjr_fws_flag = 1 if wy_inds[year_index] == 4 and curr_sri[year_index] < 8.1 else 0
 
                                 # Set compliance windows
                                 if def_flag == 1 and def_stn_flag == 1:
@@ -596,9 +582,9 @@ def get_dsm2_timeseries_data(file_path):
                                     end_1 = datetime.datetime.strptime(f"30-Apr", "%d-%b")
 
                                 # Update previous year/index trackers
-                                year_prev = int(years[year_index2])
+                                year_prev = int(years[year_index])
                                 wy_ind_prev2 = wy_ind_prev
-                                wy_ind_prev = int(wy_inds[year_index2])
+                                wy_ind_prev = int(wy_inds[year_index])
 
                             # Add 8 hours to start
                             start_plus = datetime.timedelta(hours=8)
@@ -607,68 +593,62 @@ def get_dsm2_timeseries_data(file_path):
                             end_plus = datetime.timedelta(hours=32)
 
                             # Current date being evaluated
-                            now = dates_copy[year_index2]
+                            now = dates_copy[year_index]
 
-                            val_found = 0
                             reg_val = None
 
                             if start_1 is not None:
-                                start_1 = start_1.replace(year = int(years[year_index2]))
-                                end_1 = end_1.replace(year = int(years[year_index2]))
+                                start_1 = start_1.replace(year = int(years[year_index]))
+                                end_1 = end_1.replace(year = int(years[year_index]))
                                 if now >= start_1 + start_plus and now < end_1 + end_plus:
                                     reg_val = wyt_data["Val1"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 15.6
-                                    val_found = 1
                                 end_1 = end_1.replace(year=2017)
-                            if start_2 is not None and val_found == 0:
-                                start_2 = start_2.replace(year = int(years[year_index2]))
-                                end_2 = end_2.replace(year = int(years[year_index2]))
+
+                            elif start_2 is not None:
+                                start_2 = start_2.replace(year = int(years[year_index]))
+                                end_2 = end_2.replace(year = int(years[year_index]))
                                 if now >= start_2 + start_plus and now < end_2 + end_plus:
                                     reg_val = wyt_data["Val2"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 14.0
-                                    val_found = 1
                                 end_2 = end_2.replace(year=2017)
 
-                            if start_3 is not None and val_found == 0:
-                                start_3 = start_3.replace(year=int(years[year_index2]))
-                                end_3 = end_3.replace(year=int(years[year_index2]))
+                            elif start_3 is not None:
+                                start_3 = start_3.replace(year=int(years[year_index]))
+                                end_3 = end_3.replace(year=int(years[year_index]))
                                 if now >= start_3 + start_plus and now < end_3 + end_plus:
                                     reg_val = wyt_data["Val3"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 12.5
-                                    val_found = 1
                                 end_3 = end_3.replace(year=2017)
 
-                            if start_4 is not None and val_found == 0:
-                                start_4 = start_4.replace(year=int(years[year_index2]))
-                                end_4 = end_4.replace(year=int(years[year_index2]))
+                            elif start_4 is not None:
+                                start_4 = start_4.replace(year=int(years[year_index]))
+                                end_4 = end_4.replace(year=int(years[year_index]))
                                 if now >= start_4 + start_plus and now < end_4 + end_plus:
                                     reg_val = wyt_data["Val4"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 19.0
-                                    val_found = 1
                                 end_4 = end_4.replace(year=2017)
 
-                            if start_5 is not None and val_found == 0:
-                                start_5 = start_5 = start_5.replace(year=int(years[year_index2]))
-                                end_5 = end_5.replace(year=int(years[year_index2]))
+                            elif start_5 is not None:
+                                start_5 = start_5 = start_5.replace(year=int(years[year_index]))
+                                end_5 = end_5.replace(year=int(years[year_index]))
                                 if now >= start_5 + start_plus and now < end_5 + end_plus:
                                     reg_val = wyt_data["Val5"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 16.5
-                                    val_found = 1
                                 end_5 = end_5.replace(year=2017)
 
-                            if start_6 is not None and val_found == 0:
-                                start_6 = start_6.replace(year=int(years[year_index2]))
-                                end_6 = end_6.replace(year=int(years[year_index2]))
+                            elif start_6 is not None:
+                                start_6 = start_6.replace(year=int(years[year_index]))
+                                end_6 = end_6.replace(year=int(years[year_index]))
                                 if now >= start_6 + start_plus and now < end_6 + end_plus:
                                     reg_val = wyt_data["Val6"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 15.6
-                                    val_found = 1
                                 end_6 = end_6.replace(year=2017)
 
                             std_ts.append(reg_val)
@@ -794,15 +774,9 @@ def get_dsm2_timeseries_data(file_path):
     df_pre.columns = df_pre_names.iloc[0]
 
     # Calculate differences
-    ECval = df_pre['ValueEC']
-    Clval = df_pre['ValueCl']
-    AG = df_pre['D1641AG']
-    FWS = df_pre['D1641FWS']
-    MI = df_pre['D1641MI']
-
-    df_pre['AG_diff'] = ECval - AG
-    df_pre['FWS_diff'] = ECval - FWS
-    df_pre['MI_diff'] = Clval - MI
+    df_pre['AG_diff'] = df_pre['ValueEC'] - df_pre['D1641AG']
+    df_pre['FWS_diff'] = df_pre['ValueEC'] - df_pre['D1641FWS']
+    df_pre['MI_diff'] = df_pre['ValueCl'] - df_pre['D1641MI']
 
     ndblw_arr = []
     ndvio_arr = []
@@ -1349,6 +1323,14 @@ def create_water_qual_plot(df_percentiles, fig_value, plot_directory, alts, line
     return plot_directory + "/" + fig_value + "_exceedance" + ".png"
 
 def get_wq_location_data():
+    """
+    Gets the table of location data for the plots
+    Returns
+    -------
+    crosswalk: dataframe
+        Dataframe containing all locations, names, and y axis limits
+    """
+    
     crosswalk = pd.read_excel("../inputs/location_code_crosswalk_water_quality.xlsx")
     crosswalk.drop(columns="Model", inplace=True)
     return crosswalk
