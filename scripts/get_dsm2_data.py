@@ -387,9 +387,19 @@ def get_dsm2_timeseries_data(file_path):
                 loc_comp_df = comp_df[comp_df["Var Name"] == out_statns[station_index]]
 
                 if not loc_comp_df.empty:
-                    print(comp_names[compliance_index])
-                    comp_count[compliance_index] = 1
-                    loc_comp_dfs[compliance_index] = loc_comp_df
+                    if out_statns[station_index] == "RSAN007":
+                        if out_stats[station_index] == "MAX" and comp_names[compliance_index] == "MI Antioch":
+                            print(comp_names[compliance_index])
+                            comp_count[compliance_index] = 1
+                            loc_comp_dfs[compliance_index] = loc_comp_df
+                        elif out_stats[station_index] == "MEAN" and comp_names[compliance_index] != "MI Antioch":
+                            print(comp_names[compliance_index])
+                            comp_count[compliance_index] = 1
+                            loc_comp_dfs[compliance_index] = loc_comp_df
+                    else:
+                        print(comp_names[compliance_index])
+                        comp_count[compliance_index] = 1
+                        loc_comp_dfs[compliance_index] = loc_comp_df
 
             # Loop through time series and set standard
             dates_copy = dates.copy()
@@ -595,6 +605,7 @@ def get_dsm2_timeseries_data(file_path):
                             # Current date being evaluated
                             now = dates_copy[year_index]
 
+                            val_found = 0
                             reg_val = None
 
                             if start_1 is not None:
@@ -604,37 +615,40 @@ def get_dsm2_timeseries_data(file_path):
                                     reg_val = wyt_data["Val1"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 15.6
+                                    val_found = 1
                                 end_1 = end_1.replace(year=2017)
-
-                            elif start_2 is not None:
+                            if start_2 is not None and val_found == 0:
                                 start_2 = start_2.replace(year = int(years[year_index]))
                                 end_2 = end_2.replace(year = int(years[year_index]))
                                 if now >= start_2 + start_plus and now < end_2 + end_plus:
                                     reg_val = wyt_data["Val2"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 14.0
+                                    val_found = 1
                                 end_2 = end_2.replace(year=2017)
 
-                            elif start_3 is not None:
+                            if start_3 is not None and val_found == 0:
                                 start_3 = start_3.replace(year=int(years[year_index]))
                                 end_3 = end_3.replace(year=int(years[year_index]))
                                 if now >= start_3 + start_plus and now < end_3 + end_plus:
                                     reg_val = wyt_data["Val3"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 12.5
+                                    val_found = 1
                                 end_3 = end_3.replace(year=2017)
 
-                            elif start_4 is not None:
+                            if start_4 is not None and val_found == 0:
                                 start_4 = start_4.replace(year=int(years[year_index]))
                                 end_4 = end_4.replace(year=int(years[year_index]))
                                 if now >= start_4 + start_plus and now < end_4 + end_plus:
                                     reg_val = wyt_data["Val4"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 19.0
+                                    val_found = 1
                                 end_4 = end_4.replace(year=2017)
 
-                            elif start_5 is not None:
-                                start_5 = start_5 = start_5.replace(year=int(years[year_index]))
+                            if start_5 is not None and val_found == 0:
+                                start_5 = start_5.replace(year=int(years[year_index]))
                                 end_5 = end_5.replace(year=int(years[year_index]))
                                 if now >= start_5 + start_plus and now < end_5 + end_plus:
                                     reg_val = wyt_data["Val5"].iloc[0]
@@ -642,13 +656,14 @@ def get_dsm2_timeseries_data(file_path):
                                         reg_val = 16.5
                                 end_5 = end_5.replace(year=2017)
 
-                            elif start_6 is not None:
+                            if start_6 is not None and val_found == 0:
                                 start_6 = start_6.replace(year=int(years[year_index]))
                                 end_6 = end_6.replace(year=int(years[year_index]))
                                 if now >= start_6 + start_plus and now < end_6 + end_plus:
                                     reg_val = wyt_data["Val6"].iloc[0]
                                     if def_flag == 1 and def_stn_flag == 1:
                                         reg_val = 15.6
+                                    val_found = 1
                                 end_6 = end_6.replace(year=2017)
 
                             std_ts.append(reg_val)
@@ -1397,14 +1412,14 @@ if __name__ == '__main__':
     # call the function to combine them
     final_data_frame = combine_all_runs(studies, percentile_files)
 
-    # get the
+    # get the data for the different plots
     df_location_info = get_wq_location_data()
 
+    # this will hold the alt text for each figure
     alt_text = []
 
     # set up the document
     appendix_prefix = " F.2.8"
-    template = r"..\inputs\template_v2-fonts.docx"
     doc = docx.Document(template)
     doc.add_heading(f"Attachment{appendix_prefix}", level=1)
 
@@ -1416,14 +1431,23 @@ if __name__ == '__main__':
     obj_font.color.rgb = RGBColor(0, 0, 0)
     obj_font.name = 'Times New Roman'
 
+    # add the set up for the plots. A folder to hold them and line colors and styles
     s_plot_directory = "./wq_plots"
     line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g", 'c']
     line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"]
 
+    # loop though the rows which coorespond to a plot
     for index, location in df_location_info.iterrows():
-        s_plot_path = create_water_qual_plot(final_data_frame, location['VarName'], s_plot_directory, scenario_names, line_styles, line_colors, location['Ymin'], location['Ymax'])
+
+        # create the plot and capture the path
+        s_plot_path = create_water_qual_plot(final_data_frame, location['VarName'], s_plot_directory,
+                                             scenario_names, line_styles, line_colors,
+                                             location['Ymin'], location['Ymax'])
+
+        # Generate the caption to match the previous doccumentation
         s_fig_caption = 'D1641 ' + location['VarName'].split('_')[-1] + ' ' + location['Location (Title)'] + ' Compliance Exceedance Plot'
 
+        # change to landscape to fit the images
         if index == 0:
             change_orientation(doc, "landscape")
 
@@ -1442,13 +1466,12 @@ if __name__ == '__main__':
         if index != len(df_location_info) - 1:
             doc.add_page_break()
 
+    # save the doc to the temporary name
     doc.save(doc_name)
 
     # Format alt text for all figures as one string to be passed to vbs
     alt_text_string_figures = ("+").join(alt_text)
     alt_text_string_figures = alt_text_string_figures.replace(" ", "_")
-
-
 
     # Run vbs script
     # Arguments are existing document, new document to be saved to, alt text for all tables, number of tables, alt text for all figures, number of figures
