@@ -46,9 +46,8 @@ conda env create -f appendix_gen.yml
 	in the DSS pathname.
 	3) Define the `alts` list, specify the same run names that you provided in the DSSReader (such as NAA, Alt1, etc.) All names should be exactly the same, except that
 	"Baseline" should be referred to as "NAA" in these scripts. Write the file names without quotation marks.
-	4) Define the `report_type` variable as either "flow", "elevation", or "diversion" for a CalSim appendices, "temperature" for a HEC5Q appendix, 
-	4) Define the "report_type" variable as either "flow", "elevation", "diversion", or "water supply" for a CalSim appendices, "temperature" for a HEC5Q appendix, 
-	or "EC", "Cl", or "X2" for a DSM2 (salinity) appendices.
+	4) Define the `report_type` variable as either "flow", "elevation", "diversion", or "water supply" for a CalSim appendices, "temperature" for a HEC5Q appendix, 
+	or "EC", "Cl", or "Position" for a DSM2 (salinity) appendices.
 	5) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space.
 	7) Make sure `dss_path` variable correctly references the DSS_contents output file you copied over. Also, make sure that the parent directory is correct
 	for where you have your eis_appendix_gen local directory stored. 
@@ -57,5 +56,15 @@ conda env create -f appendix_gen.yml
 4. The EIS Appendix output will be a Microsoft Word Document in the eis_appendix_gen directory under the name f"appendix_final_{report_type}.docx". 
 5. After the script finishes running, open the Word document and **Ctrl+A** to select all. Then press **F9** to generate the table and figure numbers. 
 
+## Usage (Water Quality Compliance)
+1. Create a folder called `studies` and place all DSM2 output files in the folder. These will typically be the files that end with 'EC_p'.
+2. Ensure that each alternative has the correct hydrology in the file name (ex: 2022MED).
+3. Open get_dsm2_data.py
+4. Update `scenario_names` to contain the names and files for each alternative. The structure of this dictionary is '<display name>': '<file name>'.
+5. Make sure that `doc_name` and `new_doc` contain the paths (not on OneDrive) for the temporary and final doc.
+6. Run get_dsm2_data.py
+7. The output will be a Microsoft Word Document with the name specified in `new_doc`.
+8. After the script finishes running, open the Word document and **Ctrl+A** to select all. Then press **F9** to generate the figure numbers. 
+
 ## Support
-Please contact emadonna@usbr.gov for support.
+Please contact rlucas@usbr.gov for support.
