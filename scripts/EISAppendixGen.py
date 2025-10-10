@@ -239,7 +239,7 @@ if __name__ == "__main__":
 
     if report_type == 'water supply':
         # two tables per comparison
-        num_tables = 2 * len(comparisons)
+        num_tables = 3 * len(comparisons)
         # always 10 tables
         num_figures = 10
     else:
