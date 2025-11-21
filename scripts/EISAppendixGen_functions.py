@@ -17,6 +17,8 @@ from time import strptime
 from storage_to_elevation import storage_to_elevation
 from ec_to_cl import ec_to_cl
 from math import floor
+from datetime import datetime
+
 
 def get_locations(location_crosswalk_path, fields):
     """
