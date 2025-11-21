@@ -626,6 +626,20 @@ def set_cell_border(cell: _Cell, **kwargs):
                     element.set(qn('w:{}'.format(key)), str(edge_data[key]))
 
 def set_cell_color(cell, color):
+    """
+    Sets the cell color of a table
+    Parameters
+    ----------
+    cell:  cell attribute from docx table object
+        1 cell that will be have the color set
+    color: str
+        Color code to set the cell color
+
+    Returns
+    -------
+    None
+    """
+
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     shading = OxmlElement('w:shd')
@@ -719,6 +733,10 @@ def change_orientation(doc, new_orientation):
     new_orientation: string
         Either "landscape" or "portrait" to indicate the desire page orientation for the new section
 
+    Returns
+    --------
+    new_section: docx section
+
     """
 
     current_section = doc.sections[-1]
@@ -740,12 +758,19 @@ def format_table(doc_table, table_df, doc, report_type):
 
     Parameters
     ----------
-    t: docx table object
+    doc_table: docx table object
         Exceedance table to be formatted for report
     table_df: dataframe
         Dataframe containing data to go into report table
     doc: docx object
         Docx object containing table to be formatted
+    report_type: str
+        type of report. (used to determine what decimal place to round to).
+
+    Returns
+    -------
+    None
+
     """
     # Change font size to fit on page better
    # change_table_font_size(doc, 8)
