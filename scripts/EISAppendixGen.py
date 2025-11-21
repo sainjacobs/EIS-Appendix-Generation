@@ -19,13 +19,13 @@ if __name__ == "__main__":
     #Fields to use from DSS Reader
 
     # Use for running "elevations" report type, in desired order.
-    fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
+    # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     # #Use for running "flow" report type
-    # fields = ["C_SAC048", "C_YBP020", "C_SAC007", "C_SJR070", "C_SJR070", "C_OMR014", "NDO", "C_SJR225", "C_SJR180",
-    #         "C_SJR115", "C_STS004", "C_STS059", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201", "C_SAC120",
-    #         "SP_SAC083_YBP037", "C_FTR059", "C_FTR003", "C_NTOMA", "C_AMR004", "C_LWSTN", "C_CLR011",
-    #           ]
+    fields = ["C_LWSTN", "C_CLR011", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201",
+                            "C_SAC120", "C_FTR059", "C_FTR003", "SP_SAC083_YBP037", "C_YBP020",
+                            "C_NTOMA", "C_AMR004", "C_SAC048", "C_SAC007", "C_SJR225", "C_SJR180",
+                            "C_SJR115", "C_STS059", "C_STS004", "C_SJR070", "C_OMR014", "NDO"]
 
     # #Used for running "diversions" report type
     # fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001"
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     Note 2: Conversion from microSiemens/cm to mg/L Cl uses equation 2 of https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
     
     """
-    report_type = "elevation"
+    report_type = "flow"
 
     #For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
     use_lumped_table_captions = False
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     #Add salinity and temperature - could break into separate scripts
 
     # Prefix for tables and figures in appendix
-    appendix_prefix = " F.2.1" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion; F.2.4 is water supply
+    appendix_prefix = " F.2.2" #F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion; F.2.4 is water supply
                                 #F.2.5 is DSM2-EC ; F.2.6 is DSM2-X2 (position); F.2.7 is DSM2 - Chloride; F.2.8 is DSM2
 
     # Path to file with location code crosswalk
@@ -239,7 +239,7 @@ if __name__ == "__main__":
 
     if report_type == 'water supply':
         # two tables per comparison
-        num_tables = 2 * len(comparisons)
+        num_tables = 3 * len(comparisons)
         # always 10 tables
         num_figures = 10
     else:
@@ -706,7 +706,7 @@ if __name__ == "__main__":
                 caption2.paragraph_format.space_before = Pt(1)
 
                 # Generate fig title
-                fig_title_prefix = "Figure " + appendix_prefix + "."
+                fig_title_prefix = "Figure " + appendix_prefix + "-"
                 fig_title = locations[field_index] + ", " +  stat_title + " " + fig_value
                 #Add fig title as the figure caption below figure.
                 add_caption_byfield(doc, "Figure", fig_title_prefix, fig_title, custom_style="Figure Caption")
