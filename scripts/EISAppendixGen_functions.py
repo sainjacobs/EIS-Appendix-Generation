@@ -367,6 +367,78 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
 
     return t_dfs
 
+def parse_dssReader_annualavg(dss_path, runs, field, report_type, convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = ''):
+    """
+        Reads DSS output from reader for desired runs and field
+
+        Parameters
+        ----------
+        dss_path: string
+            Path and file name for xlsx file containing DSSReader Output
+        runs: list of strings
+            Names of the runs to be processed
+        report_type: string
+            Type of report being generated. Used to check whether or not it's a temperature report
+        yr_start_month: int
+            Integer calendar month (1= Jan) for start of each year used for the annual avg. 1 indicates a January start, so the
+            average is computed using Jan1 through Dec 31 values.
+        field: string
+            Current field being processed
+        convert_to_elevation: bool
+            True if you are converting storage to elevation. Need to also set the orig_unit field to the original storage
+            unit
+        orig_unit: str
+            Original storage unit (Currently only have "TAF" implemented). Used for storage to elevation conversion.
+
+        """
+    # Read DSS Output from specified path for specified field
+    dss_output = pd.read_excel(dss_path)
+
+    dss_output = dss_output[['Date', "Scenario", "WY", field]]
+    dss_output['Date'] = pd.to_datetime(dss_output.Date, format = '%Y-%m-%d')
+
+    if report_type in ["temperature"]:
+        # Drop rows with flag value for missing data
+        rows_to_drop = (dss_output[dss_output.columns[3:]] < -100).any(axis=1)
+        dss_output = dss_output[~rows_to_drop]
+
+        #Yearly averages (for each water year). This assumes daily data.
+        i_first_complete_wy =  dss_output.Date.min().year +2 if dss_output.Date.min()> datetime(dss_output.Date.min().year, 10, 1,0) else dss_output.Date.min().year + 1
+        i_last_complete_wy = dss_output.Date.max().year if dss_output.Date.max()>=datetime(dss_output.Date.max().year, 10,31,0) else dss_output.Date.max().year -1
+        yrly_data = dss_output.loc[dss_output.WY.isin(range(i_first_complete_wy, i_last_complete_wy+1))].groupby(["Scenario", "WY"])[[field]].mean()
+        yrly_data.reset_index(inplace=True)
+        dss_output = yrly_data
+
+
+
+        # dss_output["Scenario"] = scenario
+    # If we want elevation, need to convert from storage
+    if convert_to_elevation:
+        # Convert storage to elevation
+        df_elevations = storage_to_elevation(dss_output, field, storage_elevation_fn, orig_unit=orig_unit)
+        # Replace the dss_output dataframe and continue formatting the tables.
+        dss_output = df_elevations
+        raise ValueError("Annual Averaging for elevations has not yet been implemented.")
+    if convert_to_cl:
+        # Convert EC (microsiemens/cm) to mg/L Cl using the regression relationship defined as eqn 2 in
+        # https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
+        df_cl = ec_to_cl(dss_output, field, orig_unit=orig_unit)
+        # Replace the dss_output dataframe and continue formatting the tables.
+        dss_output = df_cl
+        raise ValueError("Annual Averaging for cloride has not yet been implemented.")
+
+    # Create df for each alternative/run and reformat
+    df_all_runs = pd.DataFrame(index = range(i_first_complete_wy, i_last_complete_wy + 1))
+    for run in runs:
+        if run == "NAA":
+            run_df = dss_output.loc[dss_output["Scenario"] == "Baseline"]
+        else:
+            run_df = dss_output.loc[dss_output["Scenario"] == run]
+        # Add this run's data to the dataframe of all run data.
+        df_all_runs [run_df.Scenario.unique()[0]] = run_df.copy(deep = True).set_index("WY")[field]
+
+    return df_all_runs
+
 def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_calendar_yr = False):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
@@ -1148,6 +1220,66 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
 
     plt.close()
 
+def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles, line_colors):
+    """
+    Generates and saves individual month plots
+
+    Parameters
+    ----------
+    df_annual: pandas dataframe
+        Dataframe with WYs as the index and annual average values for each of the runs as values. Columns are run names.
+    yr_directory: string
+        Directory to save the annual exceedance plot to.
+    alts: list of strings
+        Names of the runs being compared in report
+    line_styles: list of strings
+        Styles for lines on plots
+    line_colors: list of strings
+        Colors for lines on plots
+    """
+    # Check for/create directory to store monthly exceedance plots
+    if not os.path.exists(yr_directory):
+        os.makedirs(yr_directory)
+
+    fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    for fig_index, altname in enumerate(df_annual.columns):
+        # Dataset for this alt
+        df_alt_data = df_annual[[altname]].copy(deep=True)
+
+        # Now calculate exceedance values using this month's data
+        df_alt_data.sort_values(by=altname, inplace=True, ascending=False)
+        df_alt_data.dropna(subset=altname, inplace=True)
+        df_alt_data['Rank'] = range(1, len(df_alt_data) + 1)
+        df_alt_data['Exc Prob'] = df_alt_data["Rank"] / (df_alt_data.shape[0] + 1) * 100  # m/(N+1)
+
+        # plot exceedance probability vs monthly EC
+        percentages = range(0, 101, 10)
+        percentage_labels = [f"{int(i)}%" for i in percentages]
+
+        axs.plot(df_alt_data['Exc Prob'].values, df_alt_data[altname].values, color=line_colors[fig_index],
+                 linestyle=line_styles[fig_index], label=alts[fig_index])
+
+    axs.set_xticks(percentages)
+    axs.set_xticklabels(percentage_labels)
+
+    axs.set_ylabel(fig_value)
+    axs.set_xlabel("Exceedance Probability")
+
+    # Save this parameter to orient the legend correctly
+    axbox = axs.get_position()
+
+    # Add gridlines
+    plt.grid(color='gray', linestyle='--', linewidth=0.8)
+
+    # Add a legend
+    plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+
+    # flip x-axis
+    axs.invert_xaxis()
+
+    # Save figure to month directory
+    plt.savefig(os.path.join(yr_directory, "annualavg_exceedance.png"))
+    plt.close()
 
 def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles, line_colors):
     """

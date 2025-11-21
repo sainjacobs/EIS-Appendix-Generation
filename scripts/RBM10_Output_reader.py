@@ -125,19 +125,36 @@ def read_output(s_RBMfilelocations,s_scenario_labels,s_excel_file_location):
         df_split_dataframe.set_index('Date', inplace=True)
 
         # Select the columns that show the temperature at Douglas city and NF Trinity and Rename the columns
-        df_split_dataframe1 = df_split_dataframe[['Tmean92.6', 'Qmean92.6', 'Tmean72.6', 'Qmean72.6']]
+        # df_split_dataframe1 = df_split_dataframe[['Tmean92.6', 'Qmean92.6',
+        #                                           'Tmean72.6', 'Qmean72.6',
+        #                                           'Tmean'
+        #                                           ]]
+
+        #Select columns for temperatures at RBM10 node 0.5, 31.6, 72.6, 92.6, and 112. (For BDO biologists)
+        df_split_dataframe1 =df_split_dataframe[
+            ['Tmean92.6', 'Qmean92.6', 'Tmean72.6', 'Qmean72.6', 'Tmean0.5', 'Qmean0.5', 'Tmean31.6', 'Qmean31.6',
+             'Tmean112.0', 'Qmean112.0']]
 
         # Rename columns
-        df_split_dataframe1 = df_split_dataframe1.rename(columns={'Tmean92.6': 'temperature_douglas_city',
-                                                                 'Qmean92.6': 'flow_douglas_city',
-                                                                 'Tmean72.6': 'temperature_north_fork_trinity',
-                                                                 'Qmean72.6': 'flow_north_fork_trinity'})
+        df_split_dataframe1 = df_split_dataframe1.rename(columns={
+                                                                    'Tmean92.6': 'temperature_douglas_city',
+                                                                    'Qmean92.6': 'flow_douglas_city',
+                                                                    'Tmean72.6': 'temperature_north_fork_trinity',
+                                                                    'Qmean72.6': 'flow_north_fork_trinity',
+                                                                    'Tmean0.5':"temperature_0.5",
+                                                                    'Qmean0.5' :"flow_0.5",
+                                                                    "Tmean31.6":"temperature_31.6",
+                                                                    "Qmean31.6": "flow_31.6",
+                                                                    'Tmean112.0': "temperature_112.0",
+                                                                    'Qmean112.0': "flow_112.0",
+                                                                })
         # Subset the temperature columns
-        df_split_dataframe2 = df_split_dataframe1[['temperature_douglas_city','temperature_north_fork_trinity']]
+        sl_temperature_columns = ["temperature_0.5", "temperature_31.6",'temperature_douglas_city','temperature_north_fork_trinity',"temperature_112.0"]
+        df_split_dataframe2 = df_split_dataframe1[sl_temperature_columns]
 
         # convert the temperature data from deg C to deg F
-        df_split_dataframe2['temperature_douglas_city'] = df_split_dataframe1['temperature_douglas_city']*(9/5) + 32
-        df_split_dataframe2['temperature_north_fork_trinity'] = df_split_dataframe1['temperature_north_fork_trinity'] * (9 / 5) + 32
+        for s_col in sl_temperature_columns:
+            df_split_dataframe2[s_col] = df_split_dataframe1[s_col]*(9/5) + 32
 
         # Create columns for year, month and day from the date time index
         #df_split_dataframe2['datetime'] = df_split_dataframe2.index.to_series().apply(decimal_year_to_datetime)
@@ -165,9 +182,13 @@ def read_output(s_RBMfilelocations,s_scenario_labels,s_excel_file_location):
         df_split_dataframe2.index.name = "Index"
 
         if i == 0:
-            df_split_dataframe3 = df_split_dataframe2[['Date','Scenario','Year','Month','Day','WY','DY','temperature_douglas_city','temperature_north_fork_trinity']]
+            sl_all_columns = ['Date','Scenario','Year','Month','Day','WY','DY']
+            sl_all_columns.extend(sl_temperature_columns)
+            df_split_dataframe3 = df_split_dataframe2[sl_all_columns]
         else:
-            df_split_dataframe3 = pd.concat([df_split_dataframe3, df_split_dataframe2[['Date','Scenario','Year','Month','Day','WY','DY','temperature_douglas_city','temperature_north_fork_trinity']]], ignore_index=True)
+            sl_all_columns = ['Date', 'Scenario', 'Year', 'Month', 'Day', 'WY', 'DY']
+            sl_all_columns.extend(sl_temperature_columns)
+            df_split_dataframe3 = pd.concat([df_split_dataframe3, df_split_dataframe2[sl_all_columns]], ignore_index=True)
 
     overwrite_excel_with_df(s_excel_file_location, df_split_dataframe3)
 
@@ -176,11 +197,28 @@ def read_output(s_RBMfilelocations,s_scenario_labels,s_excel_file_location):
 if __name__ == "__main__":
     ############## ################## User Input Needed ###################################
     # RBM10 Runs
-    runs = [ ["Baseline", (r"C:\Users\mbeyene\Desktop\Trinity_Dam_Temperature\RBM10_reader\2025-03-07 naa\full\rbm10")],
-        ["ALT1", (r"C:\Users\mbeyene\Desktop\Trinity_Dam_Temperature\RBM10_reader\2025-03-07 trinity alt1\full\rbm10")]]
+    runs = [
+        ["Baseline",
+         (r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-07 naa\full\rbm10")],
+        ["Alt 1", (
+            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-07 trinity alt1\full\rbm10")],
+        ["Alt 2a", (
+            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-31 Alt2a_2022MED_SLR15_03302025\full\rbm10")],
+        ["Alt 2b", (
+            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-11 Alt2b_121924_flowadj16\full\rbm10")],
+        ["Alt 3", (
+            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-31 Alt3_2022MED_SLR15_03302025\full\rbm10")],
+        ["Alt 4",
+         (r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-06 alt4\full\rbm10")],
+        ["Alt 6", (
+            r"C:\Users\cyu\trinity_hec5q_github\alt6_20250508\2025-05-09 Alt6_wTUCP_2022MED_CCWD\full\rbm10")],
+        ["Alt 7", (
+            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-14 alt7_02272025_numerical_revision\full\rbm10")],
+    ]
 
     s_scenario_labels, s_RBMfilelocations = zip(*runs)
-    s_excel_file_location = r"C:\Users\mbeyene\Desktop\Trinity_Dam_Temperature\RBM10_reader\DSS_contents.xlsx"
+    s_excel_file_location = r"C:\calsim_gits\dss_reader_git\calsim_dss_reader\DSS_contents_rbm10_additionalNodes.xlsx"
+        #r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\DSS_contents_Alt1_NAA.xlsx"
 
     o_rbm10_results = read_output(s_RBMfilelocations,s_scenario_labels,s_excel_file_location)
 
