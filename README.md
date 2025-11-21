@@ -7,11 +7,13 @@ EIS Appendix Generation
 Automatically generate appendices for EIS reports containing VI/508 Compliant tables and figures using the CSV output from the DSS Reader.
 
 Note: 
-- All WY type statistics are calculated by sorting monthly data into corresponding water years. Ex: Oct 1980 data is assigned the WY type associated with WY 1981. 
+- All WY type statistics are calculated by sorting monthly data into years determined by the `use_calendar_yr` flag. 
+- "Calendar year-year type sorting" means that instead of classifying October 1980 as the same WYType as WY 1981 (the water year it is part of), 
+you would classify it by the same WYType as WY1980. This affects the WYType average plots (last 5 plots for each location)
+and the WYType averages in the last 5 rows of each table.
 - If generating storage-elevation appendix, check that the ./inputs/storage_elevation_table.xlsx is up-to-date with what you want to use. The current version of the storage-elevation table is from the Sac 2021 LTO. A more up-to-date Oroville bathymetry is used in post-LTO modeling, but is **not** the version included in this repo. 
 - Check that the ./inputs/wy_flags.xlsx table matches your CalSim run's hydrology. If not, follow step 3.0) below to update it. 
-- Automatic caption numbering for figure and tables inherits the Heading 2 numbering.
-- Input to the EIS Appendix Generation script is assumed to be monthly, unless the report type is temperature. In the case of temperature, values are averaged for each month.  
+- Automatic caption numbering for figure and tables inherits the Heading 2 numbering. 
 
 ## Installation
 You will need local copies of this repo and the CalSim DSS Reader: https://gitlab.bor.doi.net/usbr-cvp-modeling/calsim_dss_reader
@@ -52,7 +54,8 @@ conda env create -f appendix_gen.yml
 	7) Make sure `dss_path` variable correctly references the DSS_contents output file you copied over. Also, make sure that the parent directory is correct
 	for where you have your eis_appendix_gen local directory stored. 
     8) Make sure that `wy_flags_path`, `doc_name`, `location_cw_path`, `storage_elevation_table`, and `new_doc` contain the correct parent directory for your local copy of eis_appendix_gen.
-	9) Run the EISAppendixGen.py script
+	9) Set `use_calendar_yr` to True to use calendar year-year type sorting. Set `use_calendar_yr` to False to use water year-year type sorting. 
+   10) Run the EISAppendixGen.py script
 4. The EIS Appendix output will be a Microsoft Word Document in the eis_appendix_gen directory under the name f"appendix_final_{report_type}.docx". 
 5. After the script finishes running, open the Word document and **Ctrl+A** to select all. Then press **F9** to generate the table and figure numbers. 
 
