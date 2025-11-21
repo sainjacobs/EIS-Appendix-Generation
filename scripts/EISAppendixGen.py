@@ -173,6 +173,9 @@ if __name__ == "__main__":
     #For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
     use_lumped_table_captions = False
 
+    #Select whether to use the calendar year to group data.
+    use_calendar_yr = True  #Note: For Trinity LTO tables/figures, use False.
+
     #TODO Add selection of units (elevation, temperature, provide both cfs and taf?)
     #Get more info from crosswalk, units, description, etc
     #Add salinity and temperature - could break into separate scripts
@@ -442,7 +445,7 @@ if __name__ == "__main__":
             fig_value = f"Average {location_params[field_index]} ({unit})"
 
             #Create Exceedance Tables from DSS Reader output
-            e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags_path, locations_wytypes[field_index], report_type)
+            e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags_path, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr)
 
             ##### Use docx package to create a document with formatted table objects and save to Word .docx file ###########
 
@@ -545,7 +548,10 @@ if __name__ == "__main__":
 
                     #Add footnote for water year type sorting method.
                     footnote3 = doc.add_paragraph()
-                    run = footnote3.add_run('* Water Year Types results are displayed with water year – year type sorting.')
+                    if not use_calendar_yr:
+                        run = footnote3.add_run('* Water Year Types results are displayed with water year – year type sorting.')
+                    else:
+                        run = footnote3.add_run('* Water Year Types results are displayed with calendar year – year type sorting.')
                     run.font.size = Pt(9)
                     footnote3.paragraph_format.space_before = Pt(1)
                 if comparison_index!=0:
@@ -693,7 +699,10 @@ if __name__ == "__main__":
 
                 # Add footnote for what wy type sorting is used.
                 caption1 = doc.add_paragraph()
-                run = caption1.add_run('*These results are displayed with water year - year type sorting.')
+                if not use_calendar_yr:
+                    run = caption1.add_run('*These results are displayed with water year - year type sorting.')
+                else:
+                    run = caption1.add_run('*These results are displayed with calendar year - year type sorting.')
                 run.font.size = Pt(9)
                 caption1.paragraph_format.space_before = Pt(1)
                 caption1.paragraph_format.space_after = Pt(1)

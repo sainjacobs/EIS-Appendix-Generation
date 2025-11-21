@@ -365,7 +365,7 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
 
     return t_dfs
 
-def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
+def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_calendar_yr = False):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
 
@@ -382,6 +382,11 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
         "TRIN" to use WYT_TRIN_
     report_type: str
         type of report (Calsim, temperature, etc)
+    use_calendar_yr: bool
+        Optional. Default is false. True indicates months should be sorted into calendar year instead of water year
+        when calculating the water year type averages. False indicated that months will be sorted into water years when
+        determining water year type.
+
 
     Returns
     ----
@@ -480,8 +485,24 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
 
     # calculate wet, above normal, dry, etc water years (sum for year type/ count of year type)
     for table_index in range(len(t_dfs)):
+
         t_dfs[table_index].set_index('WY', inplace = True)
         t_dfs[table_index]["flag"] = wy_flags[use_wytype]
+        if use_calendar_yr:
+            df_monthly_ts = pd.melt(t_dfs[table_index].reset_index(drop=False), id_vars='WY',
+                    value_vars=t_dfs[table_index].columns[:-1])
+            df_monthly_ts['i_month']= df_monthly_ts.apply(lambda l: datetime.strptime(l.variable+ "-01-1900","%b-%d-%Y" ).month,axis = 1)
+            df_monthly_ts['dates'] = df_monthly_ts.apply(lambda l: datetime(l.WY -1 , l.i_month, 1) if l.i_month>=10 else datetime(l.WY, l.i_month, 1), axis = 1)
+            df_monthly_ts['calendar_yr'] = df_monthly_ts.apply(lambda l: l.WY -1  if l.i_month>=10 else l.WY, axis = 1)
+
+            #Calendar year dataframe (rows are calendar years, columns are months, values are monthly values
+            t_dfs_calendar_yr = df_monthly_ts.pivot(columns = 'variable', index = 'calendar_yr', values = 'value')
+            #Reorder the columns so months are in order.
+            t_dfs_calendar_yr = t_dfs_calendar_yr [['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']]
+
+            #Grab the wy that is associated with each calendar year and add as a column. This means that calendar yr 1980 will be assigned the flag for wytype associated with wy1980.
+            t_dfs_calendar_yr['flag'] = wy_flags[use_wytype]
+
         exc_probs_i = exc_tables[table_index]["Exc Prob"]
         month_vals = {}
         # Also add full sim period average as a row in exceedance table
@@ -489,13 +510,26 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type):
 
         #Iterate through each type of year (wet, above normal, etc) to compute sums
         for year_type in range(len(year_types)):
-            #Calculate the percentage of total water years that have this wytype
-            d_percent_wytype =  round(len(t_dfs[table_index].loc[t_dfs[table_index]['flag'] == year_type + 1])/ len(t_dfs[table_index])*100,1)
+
+            # Calculate the percentage of total water years that have this wytype
+            if use_calendar_yr:
+                d_percent_wytype = round(len(t_dfs_calendar_yr.loc[t_dfs_calendar_yr['flag'] == year_type + 1]) / len(t_dfs_calendar_yr) * 100, 1)
+            else:
+                d_percent_wytype = round(len(t_dfs[table_index].loc[t_dfs[table_index]['flag'] == year_type + 1]) / len(t_dfs[table_index]) * 100, 1)
             wytype_percents.at[year_type+1, 'percentage'] = d_percent_wytype
             for month in t_dfs[table_index].columns[:-1]:
                 #Flags are 1 - 5 to specify which type of year
                 #Calculate mean of months classified as current year type based on flag
-                month_vals[month] = [t_dfs[table_index].loc[t_dfs[table_index]['flag'] == (year_type + 1), month].mean()]
+
+                ## Using water years
+                if not use_calendar_yr:
+                    month_vals[month] = [t_dfs[table_index].loc[t_dfs[table_index]['flag'] == (year_type + 1), month].mean()]
+                else:
+                    # Using calendar years
+                    month_vals[month] =[t_dfs_calendar_yr.loc[t_dfs_calendar_yr['flag'] == (year_type + 1), month].mean()]
+
+
+
 
             month_vals["Exc Prob"] = year_types[year_type]
 
