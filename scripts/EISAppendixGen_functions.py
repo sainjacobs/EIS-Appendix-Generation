@@ -40,12 +40,16 @@ def get_locations(location_crosswalk_path, fields):
 
     #Look up each field code's corresponding location title and add to a list
     locations = []
-    for field in fields:
+    for i, field in enumerate(fields):
         if type(field) ==str:
             locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Location (Title)"].values[0])
         elif type(field)==tuple:
+            if i>0 and field == fields[i-1]:
+                use_index = 1
+            else:
+                use_index = 0
             #If filter_search is provided, then filter the parameter column of the dataframe. This is used to get the elevation figure/table titles, since they're under the same dsspartb as the storage titles.
-            locations.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Location (Title)"].values[0])
+            locations.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Location (Title)"].values[use_index])
 
     return locations
 
@@ -71,12 +75,16 @@ def get_locations_params(location_crosswalk_path, fields):
 
     #Look up each field code's corresponding location title and add to a list
     locations = []
-    for field in fields:
+    for i, field in enumerate(fields):
         if type(field) ==str:
             locations.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Parameter"].values[0])
         elif type(field)==tuple:
+            if i>0 and field == fields[i-1]:
+                use_index = 1
+            else:
+                use_index = 0
             #If filter_search is provided, then filter the parameter column of the dataframe. This is used to get the elevation figure/table titles, since they're under the same dsspartb as the storage titles.
-            locations.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Parameter"].values[0])
+            locations.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Parameter"].values[use_index])
 
     return locations
 
@@ -102,12 +110,16 @@ def get_location_wytypes(location_crosswalk_path, fields):
 
     #Look up each field code's corresponding location title and add to a list
     wytype_list = []
-    for field in fields:
+    for i, field in enumerate(fields):
         if type(field) ==str:
             wytype_list.append(crosswalk.loc[crosswalk["DSSPartB"] == field, "Water Year Type Index"].values[0])
         elif type(field)==tuple:
+            if i>0 and field == fields[i-1]:
+                use_index = 1
+            else:
+                use_index = 0
             #If filter_search is provided, then filter the parameter column of the dataframe. This is used to get the elevation figure/table titles, since they're under the same dsspartb as the storage titles.
-            wytype_list.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Water Year Type Index"].values[0])
+            wytype_list.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Water Year Type Index"].values[use_index])
 
     return wytype_list
 
