@@ -6,9 +6,10 @@ if __name__ == "__main__":
 
     # Fields to use from DSS Reader
     # EC
-    fields = ["SAC_DS_STMBTSL","RSAN007","RSAC075", "RSAC081"]
+    fields = ["SAC_DS_STMBTSL", "CACHE_RYER", "RSAC123", "RSAC092", "RSAC101", "RSAN112", "RSAN112", "RSAN018", "ROLD024", "RSAN007",
+              "RSAC075", "RSAC081", "CHIPS_N_437", "CHIPS_S_442", "RSAC064", "CHDMC006", "CLIFTONCOURT", "ROLD034", "CHVCT000"]
     # Cl
-    # fields = ['ROLD024','RSAN007']
+    # fields = ['ROLD024', 'RSAN007', 'CLIFTONCOURT', 'CHDMC006', 'SLBAR002']
     # Position
     # fields = ['X2']
 
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
     # Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents_dsm2.xlsx"
+    dss_path = r""
 
     # Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
@@ -48,9 +49,9 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"..\appendix_temp.docx"
+    doc_name = r"appendix_temp.docx"
     # Name of final word doc
-    new_doc = rf"..\appendix_final_{report_type}.docx"
+    new_doc = rf"appendix_final_{report_type}.docx"
 
     ####END OF USER INPUTS #######
 

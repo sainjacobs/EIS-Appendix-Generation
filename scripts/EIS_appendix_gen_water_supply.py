@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
-    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents_TAF_WS.xlsx"
+    dss_path = r""
 
     # Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
@@ -24,9 +24,9 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"C:\Users\fnufferrodriguez\appendix_temp.docx"
+    doc_name = r"appendix_temp.docx"
     # Name of final word doc
-    new_doc = rf"C:\Users\fnufferrodriguez\appendix_final_water_supply.docx"
+    new_doc = r"appendix_final_water_supply.docx"
 
     ####END OF USER INPUTS #######
 

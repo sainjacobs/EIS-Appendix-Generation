@@ -65,7 +65,7 @@ if __name__ == "__main__":
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
     # Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents_temp_test.xlsx"
+    dss_path = r""
 
     # File containing shasta bin information (By calendar yr) for each of the alternatives
     shastabin_data_path = r"..\inputs\shasta_bin_info.xlsx"
@@ -77,9 +77,9 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"..\appendix_temp.docx"
+    doc_name = r"appendix_temp.docx"
     # Name of final word doc
-    new_doc = rf"..\appendix_final_temperature.docx"
+    new_doc = r"appendix_final_temperature.docx"
 
     ####END OF USER INPUTS #######
 

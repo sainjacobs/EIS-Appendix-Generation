@@ -22,13 +22,13 @@ if __name__ == '__main__':
     # this is the template for the Word doc, generally doesn't need to change
     template = r"..\inputs\template_v2-fonts.docx"
 
-    # name of the temporary document, needs to have no spaces so no OneDrive
-    doc_name = rf"C:\Users\fnufferrodriguez\temp_appendix.docx"
+    # Windows command prompt can't save to OneDrive bc of the space in the file path, save locally instead
+    # Pass absolute paths to VBS
+    # name of the temporary document
+    doc_name = rf"temp_appendix.docx"
+    # Name of final word doc
+    new_doc = rf"appendix_water_quality_compliance_supply.docx"
 
-    # Name of final word doc, needs to have no spaces so no OneDrive
-    new_doc = rf"C:\Users\fnufferrodriguez\appendix_water_quality_compliance_supply.docx"
-
-    # if you want to change what plots are plotted, you can change them in inputs\location_code_crosswalk_water_quality.xlsx
     ####END OF USER INPUTS #######
 
     create_compliance_appendix(scenario_names, template, doc_name, new_doc)

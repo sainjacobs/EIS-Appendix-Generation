@@ -6,18 +6,15 @@ if __name__ == "__main__":
 
     # Fields to use from DSS Reader
 
-    # Use for running "elevations" report type, in desired order.
+    # Use for running "elevations" report type.
     # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
-    # #Use for running "flow" report type
-    fields = ["C_LWSTN", "C_CLR011", "C_KSWCK", "C_SAC257", "C_SAC240", "C_SAC201",
-              "C_SAC120", "C_FTR059", "C_FTR003", "SP_SAC083_YBP037", "C_YBP020",
-              "C_NTOMA", "C_AMR004", "C_SAC048", "C_SAC007", "C_SJR225", "C_SJR180",
-              "C_SJR115", "C_STS059", "C_STS004", "C_SJR070", "C_OMR014", "NDO"]
+    # Use for running "flow" report type
+    fields = ['C_LWSTN','C_CLR011','C_KSWCK','C_SAC257','C_SAC240','C_SAC201','C_SAC120','C_FTR059','C_FTR003','SP_SAC083_YBP037', 'C_YBP020',
+              'C_NTOMA','C_AMR004','C_SAC048','C_SAC007','C_SJR225','C_SJR180','C_SJR115','C_STS059','C_STS004','C_SJR070','C_OMR014','NDO']
 
     # Used for running "diversions" report type
-    # fields = [ "D_LWSTN_CCT011","D_SAC240_TCC001"
-    # ,"D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
+    # fields = ["D_LWSTN_CCT011","D_SAC240_TCC001","D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
     # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
     # alternatives to include
@@ -45,7 +42,7 @@ if __name__ == "__main__":
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
     # Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents.xlsx"
+    dss_path = r""
 
     # Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
@@ -57,9 +54,9 @@ if __name__ == "__main__":
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"..\appendix_temp.docx"
+    doc_name = r"appendix_temp.docx"
     # Name of final word doc
-    new_doc = rf"..\appendix_final_{report_type}.docx"
+    new_doc = rf"appendix_final_{report_type}.docx"
 
     ####END OF USER INPUTS #######
 
