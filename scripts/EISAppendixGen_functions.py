@@ -3703,6 +3703,24 @@ def get_wq_location_data():
 
 
 def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
+    """
+    Creates the water quality compliance appendix. Creates the plots and puts them in a doccument
+    Parameters
+    ----------
+    scenario_names: dict
+        Dictionary of scenario names and files
+    template: str
+        Path to the template doc
+    doc_name: str
+        Name for temporary document
+    new_doc: str
+        Name for the final document
+
+    Returns
+    -------
+    None
+    """
+
     # Set working directory to the script's location
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
@@ -3710,7 +3728,7 @@ def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
     # List all dss files in studies folder
     studies_path = os.path.abspath(os.path.join(script_dir, "../studies"))
     path_names = [d for d in os.listdir(studies_path)
-                  if os.path.isfile(os.path.join(studies_path, d)) and d.endswith(".dss")]
+                  if os.path.isfile(os.path.join(studies_path, d)) and d.endswith(".dss") and d in scenario_names.values()]
 
     print("Model directories found:")
     print(path_names)
