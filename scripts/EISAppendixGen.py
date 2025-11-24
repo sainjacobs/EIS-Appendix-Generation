@@ -1,4 +1,4 @@
-from EISAppendixGen_functions import (get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, create_exceedance_tables, format_table, create_month_plot, create_stat_plot,
+from EISAppendixGen_functions import (get_locations, get_location_wytypes,get_locations_params, parse_dssReader_output, parse_dssReader_calendaryr, create_mixed_compliance_month_plots, create_exceedance_tables, format_table, create_month_plot, create_stat_plot, format_table_basic,
                                       change_orientation, order_elevation_storage_fields, calculate_supply_fields, format_table_supply)
 import docx
 from docx.shared import Pt, RGBColor
@@ -35,12 +35,17 @@ if __name__ == "__main__":
     #Temperature
     # alts = ['NAA', "Action 5"]
     # fields = [
+    #     "AIRPORT",  # Compliance location (most downstream) - Sac Rv along Airport Rd
+    #     "BLW CLEAR CREEK",  # Compliance location (middle) - Sac River below Clear Creek
+    #     "HWY44",  # Compliance location (most upstream) - Sac River at HWY 44
+    #
+    #     # Other locations (Not compliance locations, but still included in documentation).
     #     "BLW LEWISTON",
     #     "WHISKEYTOWN",
     #     "IGO",
     #     "ABV SACRAMENTO",
+    #     'BLW SHASTA',
     #     "BLW KESWICK",
-    #     "BLW CLEAR CREEK",
     #     "BALLS FERRY",
     #     "JELLYS FERRY",
     #     "BEND BRIDGE",
@@ -48,12 +53,28 @@ if __name__ == "__main__":
     #     "RED BLUFF DAM",
     #     "HAMILTON CITY",
     #     "BLW NIMBUS(HAZEL AVE)",
-    #      "WATT AVE",
-    #      "ABV CONFLUENCE"
+    #     "WATT AVE",
+    #     "ABV CONFLUENCE"
     # ]
 
     # Water supply fields, order doesn't matter
     alts = ['NAA', "ALT2v1"]
+
+    # Compliance fields for the mixed compliance location logic used in Alt2v3 and Action 5.
+    compliance_fields = ['AIRPORT', 'BLW CLEAR CREEK', 'HWY44']
+
+    ##### Mixed Compliance Location Logic #####
+    # Shastabin_ == 1 or 2 means compliance location is at Sac Rv at AIRPORT RD. (Most downstream location)
+    # Shastabin_ == 3 or 4 means compliance location is  Sac Rv blw Clear Creek.
+    # Shastabin_ == 5 or 6 means compliance location is at Sac Rv at HWY 44. (Most upstream location)
+    compliance_dict = {
+        1: 'AIRPORT',
+        2: 'AIRPORT',
+        3: 'BLW CLEAR CREEK',
+        4: 'BLW CLEAR CREEK',
+        5: 'HWY44',
+        6: 'HWY44',
+    }
     # fields = ['D_SBP028_17S_PR', 'D_JBC002_17N_PR',
     #    'D_CRK005_17N_NR', 'D_SAC294_03_PA', 'D_CAA143_90_PA2',
     #    'D_WTPCSD_02_PA', 'D_DMC034_71_PA2', 'D_XCC025_72_PA',
@@ -202,6 +223,9 @@ if __name__ == "__main__":
     #Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
     dss_path = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents.xlsx"
 
+    #File containing shasta bin information (By calendar yr) for each of the alternatives
+    shastabin_data_path  = r"..\inputs\shasta_bin_info.xlsx"
+
     #Path to file with WY Typing data
     wy_flags_path = "..\inputs\wy_flags.xlsx"
 
@@ -245,11 +269,17 @@ if __name__ == "__main__":
         num_tables = 3 * len(comparisons)
         # always 10 tables
         num_figures = 10
-    else:
+    elif report_type == 'temperature':
+        included_compliance_fields = [f for f in fields if f in compliance_fields]
         #Each comparison will have 3 tables and will be included for every field/location
-        num_tables = (len(comparisons) * 3) * len(fields)
+        num_tables = (len(comparisons) * 3) * len(fields) + len(included_compliance_fields)*12
         #Include a figure for each month plus 6 full simulation period statistics plots
         num_figures = (12 + 6)*len(fields)
+    else:
+        # Each comparison will have 3 tables and will be included for every field/location
+        num_tables = (len(comparisons) * 3) * len(fields)
+        # Include a figure for each month plus 6 full simulation period statistics plots
+        num_figures = (12 + 6) * len(fields)
 
     # Alt Text strings, in order for tables
     alt_text_tables = ["Alt text table example" for t in range(0,num_tables)]
@@ -409,6 +439,9 @@ if __name__ == "__main__":
                 dfs = parse_dssReader_output(dss_path, alts, location[0], report_type)
             else:
                 dfs = parse_dssReader_output(dss_path, alts, location, report_type)
+
+            if location in compliance_fields:
+                dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alts, location, report_type, shastabin_data = shastabin_data_path)
 
 
 
@@ -584,8 +617,16 @@ if __name__ == "__main__":
                 # If the directory already exists, clear it out to prevent using any old figures by accident from previous field/alternative.
                 shutil.rmtree(month_directory, ignore_errors=True)
 
+            monthly_ranked_dfs = {}
             for month in fig_dfs[0].columns[1:]:
-                create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
+                if location in compliance_fields:
+                    #for compliance fields, make exceedance plots with the compliance years marked with a marker.
+                    df_month_alts  = create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory, alts, line_styles, line_colors, compliance_dict)
+                    monthly_ranked_dfs[month] = df_month_alts
+                else:
+
+                    #Create monthly plot. For compliance locations, a red marker will be plotted for the
+                    create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
 
             ##Simulation Period Statistic Plots###
             stat_fig_dfs = copy.deepcopy(e_dfs)
@@ -666,6 +707,30 @@ if __name__ == "__main__":
 
                 #Add page break after each figure
                 doc.add_page_break()
+
+                #After each figure, add a table of the yearly value rankings (monthly_ranked_dfs)
+                if location in compliance_fields:
+                    #Change orientation to be portrait for the tables.
+                    change_orientation(doc, "portrait")
+                    month_name = file.split("_", 2)[1]
+                    table = monthly_ranked_dfs[month_name].reset_index(drop = False)
+                    table.rename(columns = {'Exc Prob': "Exceedance Probability (%)"}, inplace = True)
+                    month_str = datetime.datetime.strptime(file.split("_", 2)[1],'%b').strftime('%B')
+                    table_title = f"Calendar Year corresponding to {month_str} exceedance values at {locations[field_index]}, for each alternative."
+
+                    #Add table caption
+                    add_caption_byfield(doc, "Table", table_title_prefix, table_title,
+                                        custom_style="Table Caption")
+
+                    #Add table to document
+                    t = doc.add_table(table.shape[0] + 1, table.shape[1])
+
+                    # Format table for report
+                    format_table_basic(t, table, doc)
+                    doc.add_page_break()
+
+                    # Flip orientation back to landscape for the rest of the plots
+                    change_orientation(doc, "landscape")
 
             # Add stats plots as well
             #Set the statistics plot titles

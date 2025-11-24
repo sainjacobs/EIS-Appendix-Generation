@@ -439,6 +439,116 @@ def parse_dssReader_annualavg(dss_path, runs, field, report_type, convert_to_ele
 
     return df_all_runs
 
+def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = '', shastabin_data = ''):
+    """
+    Reads DSS output from reader for desired runs and field. Returns a dataframe with calendar year as the index and months (Jan - Dec) + shastabin flag, as columns.
+
+    Parameters
+    ----------
+    dss_path: string
+        Path and file name for xlsx file containing DSSReader Output
+    runs: list of strings
+        Names of the runs to be processed
+    report_type: string
+        Type of report being generated. Used to check whether or not it's a temperature report
+    field: string
+        Current field being processed
+    convert_to_elevation: bool
+        True if you are converting storage to elevation. Need to also set the orig_unit field to the original storage
+        unit
+    orig_unit: str
+        Original storage unit (Currently only have "TAF" implemented). Used for storage to elevation conversion.
+
+    """
+    #Read DSS Output from specified path for specified field
+    dss_output = pd.read_excel(dss_path)
+    dss_output = dss_output[['Date',"Month", "Scenario", field]]
+
+    #Create a column for the Calendar Year (will be used to find the corresponding Shasta Bin type)
+    dss_output['CalendarYear'] = dss_output.Date.dt.year
+
+    #Read in shastabin_ data
+    if shastabin_data!= "":
+        df_shastabin = pd.read_excel(shastabin_data,index_col =0)
+    else:
+        df_shastabin = pd.DataFrame(columns = ['SHASTABIN_', 'Scenario']) #Empty dataframe (just a placeholder. Doesn't get filled.)
+        df_shastabin.index.name = 'calendar_yr'
+
+    if report_type in ["temperature"]:
+        #If temperature or DSM2 data is being read, convert daily data to monthly by averaging
+        #scenario = dss_output.loc[0, "Scenario"]
+        #dss_output.drop(columns = ["Scenario"], inplace = True)
+
+        monthly_data = dss_output.groupby(["Scenario", "CalendarYear", "Month"]).mean()
+        monthly_data.reset_index(inplace=True)
+        dss_output = monthly_data
+
+        #Drop rows with flag value for missing data
+        rows_to_drop = (dss_output[[field]] < -100).any(axis=1)
+        dss_output = dss_output[~rows_to_drop]
+    else:
+        raise ValueError("Parsing calendar year is not implemented yet for this report type.")
+
+        #dss_output["Scenario"] = scenario
+    #If we want elevation, need to convert from storage
+    if convert_to_elevation:
+        #Convert storage to elevation
+        df_elevations = storage_to_elevation(dss_output, field, storage_elevation_fn, orig_unit = orig_unit)
+        #Replace the dss_output dataframe and continue formatting the tables.
+        dss_output = df_elevations
+    if convert_to_cl:
+        #Convert EC (microsiemens/cm) to mg/L Cl using the regression relationship defined as eqn 2 in
+        #https://www.waterboards.ca.gov/waterrights/water_issues/programs/bay_delta/california_waterfix/exhibits/docs/ccc_cccwa/CCC-SC_25.pdf
+        df_cl = ec_to_cl(dss_output, field, orig_unit = orig_unit)
+        #Replace the dss_output dataframe and continue formatting the tables.
+        dss_output = df_cl
+
+    # Create df for each alternative/run and reformat
+    run_dfs = []
+    for run in runs:
+        if run == "NAA":
+            run_df = dss_output.loc[dss_output["Scenario"] == "Baseline"]
+        else:
+            run_df = dss_output.loc[dss_output["Scenario"] == run]
+
+        #If the run has the shasta action in it (and has variable of "SHASTABIN_" in the CalSim DV file), then add a column for the shastabin.
+        if run in df_shastabin.Scenario.values:
+            run_df['Shastabin'] = run_df.apply(lambda l: df_shastabin.loc[(df_shastabin.index == l.CalendarYear)&(df_shastabin.Scenario == run)].SHASTABIN_.item(), axis = 1)
+
+        run_df["month_name"] = " "
+
+        #Add abbrievated month name to df for tables and plotting later
+        for index, row in run_df.iterrows():
+            run_df.loc[index, "month_name"] = calendar.month_abbr[int(row["Month"])]
+        #Drop unneeded columns
+        run_df.drop(columns=["Month", 'Date'], inplace=True)
+        run_dfs.append(run_df)
+
+    #Transpose dfs to be in correct format for tables
+    t_dfs = []
+    for run_df in run_dfs:
+        scenario = run_df.Scenario.unique()[0]
+        run_df.drop(columns = ["Scenario"], inplace = True)
+        transposed_df = pd.DataFrame(
+            columns=["CalendarYear", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+        #One row for each WY consisting of a column for each monthly EC value
+        for year in np.unique(run_df["CalendarYear"]):
+            year_t = run_df.loc[run_df["CalendarYear"] == year]
+            year_t.set_index("month_name", inplace=True)
+            year_t = year_t.transpose()
+            year_t.insert(0, "CalendarYear", year)
+            if scenario in df_shastabin.Scenario.values:
+                year_t.insert(1, "SHASTABIN_", df_shastabin.loc[(df_shastabin.index== year)&(df_shastabin.Scenario == scenario)].SHASTABIN_.item())
+            else:
+                year_t.insert(1, "SHASTABIN_", np.nan)
+            year_t.reset_index(drop=True, inplace=True)
+            #Add each year as new row to df
+            transposed_df = pd.concat([transposed_df, year_t.iloc[1:2]], axis=0, ignore_index=True)
+
+        t_dfs.append(transposed_df)
+
+    return t_dfs
+
 def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_calendar_yr = False):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
@@ -826,6 +936,75 @@ def change_orientation(doc, new_orientation):
 
     return new_section
 
+def format_table_basic(doc_table, table_df, doc):
+    """
+    Creates tables formatted for appendix report from exceedance tables
+
+    Parameters
+    ----------
+    doc_table: docx table object
+        Exceedance table to be formatted for report
+    table_df: dataframe
+        Dataframe containing data to go into report table
+    doc: docx object
+        Docx object containing table to be formatted
+    """
+    # Change font size to fit on page better
+   # change_table_font_size(doc, 8)
+
+    # add the header rows.
+    for column_index in range(table_df.shape[1]):
+        doc_table.cell(0, column_index).text = table_df.columns[column_index]
+
+    # add the rest of the data frame
+    for row_index in range(table_df.shape[0]):
+        for column_index in range(table_df.shape[1]):
+            # Round index to 1 decimal. Round all other values to nearest whole number
+
+            if column_index == 0:
+                doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index],1))
+            else:
+                doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index]))
+
+    # Set table top and bottom borders
+    borders = OxmlElement('w:tblBorders')
+    bottom_border = OxmlElement('w:bottom')
+    bottom_border.set(qn('w:val'), 'single')
+    bottom_border.set(qn('w:sz'), '4')
+    borders.append(bottom_border)
+    top_border = OxmlElement('w:top')
+    top_border.set(qn('w:val'), 'single')
+    top_border.set(qn('w:sz'), '4')
+    borders.append(top_border)
+
+    doc_table._tbl.tblPr.append(borders)
+
+    # Make headers bold
+    make_rows_bold(doc_table.rows[0])
+
+    # Make first column bold
+    bolding_columns = [0]
+    for row in list(range(table_df.shape[0] + 1)):
+        for column in bolding_columns:
+            doc_table.rows[row].cells[column].paragraphs[0].runs[0].font.bold = True
+
+    # Add borders under header
+    for cell in doc_table.rows[0].cells:
+        set_cell_border(cell, bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
+
+        # Align values in center of cells
+        for row in doc_table.rows:
+            for cell in row.cells:
+                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+            # Decrease row spacing for table
+            row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+            row.height = Cm(0.45)  # 2 cm
+
+        # Change font size to fit on page better
+        change_table_font_size(doc, 8)
+
 def format_table(doc_table, table_df, doc, report_type):
     """
     Creates tables formatted for appendix report from exceedance tables
@@ -1127,6 +1306,88 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     # Change font size to fit on page better
     change_table_font_size(doc, 10)
 
+def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, month, month_directory, alts, line_styles, line_colors, compliance_dict ):
+    if not os.path.exists(month_directory):
+        os.makedirs(month_directory)
+
+    # # Read in SHASTABIN_ data
+    # if shastabin_data != "":
+    #     df_shastabin = pd.read_excel(shastabin_data)
+
+    #Create figures
+    df_month_alts = pd.DataFrame(columns = alts)
+    fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    for fig_index in range(len(dfs_calendaryr)):
+        # Dataset for this alt
+        df_alt_data = dfs_calendaryr[fig_index].copy(deep = True)
+        df_alt_data.set_index('CalendarYear', inplace = True)
+
+        #Subset to only the month of interest
+        df_month = df_alt_data[[ 'SHASTABIN_', month]]
+
+        #Now calculate exceedance values using this month's data
+        df_month.sort_values(by = month, inplace = True, ascending = False)
+        df_month.dropna(subset = [month], inplace = True)
+        df_month['Rank'] = range(1, len(df_month) + 1)
+        df_month['Exc Prob'] = df_month["Rank"] / (df_month.shape[0] + 1) * 100  # m/(N+1)
+
+        #Create a column to indicate whether or not this location is used for compliance under this alt (This depends on Shastabin value)
+        #Shastabin_ == 1 or 2 means compliance location is at Sac Rv at AIRPORT RD.
+        #Shastabin_ == 3 or 4 means compliance location is  Sac Rv blw Clear Creek.
+        #Shastabin_ == 5 or 6 means compliance location is at Sac Rv at HWY 44
+        df_month['compliance'] = df_month.apply(lambda l: False if np.isnan(l.SHASTABIN_) else (True if compliance_dict[l.SHASTABIN_] == location else False), axis = 1)
+
+        df_month_alts[alts[fig_index]] = df_month[[month, 'Exc Prob']].reset_index(drop = False).set_index("Exc Prob")['CalendarYear']
+
+        #Percentage array from 0 to 100 (used for xtick labels)
+        percentages = range(0, 101, 10)
+        percentage_labels = [f"{int(i)}%" for i in percentages]
+
+        #Plot the exceedance.
+        axs.plot(df_month['Exc Prob'], df_month[month], color=line_colors[fig_index],
+                 linestyle=line_styles[fig_index], label=alts[fig_index])
+
+        #Add markers on the exceedance plot if this location is a compliance location for that year.
+        if len(df_month.dropna(subset= ['SHASTABIN_']))>0:
+            axs.plot(df_month.loc[df_month.compliance]['Exc Prob'], df_month.loc[df_month.compliance][month], color = line_colors[fig_index], linestyle = 'none', marker = 'o', markersize = 3,  label = alts[fig_index] + ' - Compliance Location Years')
+
+        #Add annotations
+        # for ind, row in df_month.loc[df_month.compliance].iterrows():
+        #     if fig_index == 1:
+        #         axs.annotate(text = str(ind), xy = (row['Exc Prob'], row[month]), ha = 'left', va = 'top', rotation = -45,
+        #                      fontsize = 4, color =line_colors[fig_index] )
+        #     elif fig_index == 2:
+        #         axs.annotate(text=str(ind), xy=(row['Exc Prob'], row[month]), ha='right', va='bottom', rotation=-45,
+        #                      fontsize=4, color=line_colors[fig_index])
+
+        #Format axes
+        axs.set_xticks(percentages)
+        axs.set_xticklabels(percentage_labels)
+        axs.set_ylabel(fig_value)
+        axs.set_xlabel("Exceedance Probability")
+
+        # Save this parameter to orient the legend correctly
+        axbox = axs.get_position()
+
+        # Add gridlines
+        plt.grid(color='gray', linestyle='--', linewidth=0.8)
+
+        # Add a legend
+        plt.legend(loc='center', ncol=3, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], fontsize = 10)
+
+    # Add month number at beginning so that figures can be easily inserted in CY order to document later
+    month_number = str(strptime(month, '%b').tm_mon)
+
+    # flip x-axis
+    axs.invert_xaxis()
+
+    # Add leading zeros to month numbers
+    if len(month_number) < 2:
+        month_number = str(0) + month_number
+    # Save figure to month directory
+    plt.savefig(month_directory + "/" + month_number + "_" + month + "_monthly_exceedance" + ".png", dpi = 300)
+    plt.close()
+    return df_month_alts
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors, report_type=''):
     """
