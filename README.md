@@ -37,7 +37,12 @@ conda env create -f appendix_gen.yml
 	from the input dss file, the second converts relevant columns to CFS, and the third converts to TAF. 
 2. Copy the DSS Reader output file with the desired units for your model and paste the output into the eis_appendix_generation directory in the 
 "inputs" folder.
-3. Run the EIS Appendix Generation scripts 
+3. If running a temperature appendix, run the DSS Reader to extract the "SHASTABIN_" variable from the HEC-5Q inputs file "CALSIMII_HEC5Q.DSS" files for each alt. 
+   1) Use "CALSIM" for the `model` variable. 
+   2) Use the corresponding "CALSIMII_HEC5Q.DSS" files for each alt in the `runs` list. Note that only alternatives including the Shasta action will have the SHASTABIN_ variable. 
+   3) Assign `list = ['SHASTABIN_']` to `add_field_list`. 
+   4) Run dssReader.py
+4. Run the EIS Appendix Generation scripts 
 
 	0) **Optional**: Preprocess the WY type datasets to get the final water year type determination for each water year. **This only needs to be done once if your climate scenario is the same.** 
        1) Open process_wytypes.py and assign `s_dvfile` to the file path for the DSS_contents.xlsx file containing CalSim output Water year type variables. Assign `s_output` to the path corresponding to /inputs/wy_flags.xlsx. 
@@ -50,14 +55,36 @@ conda env create -f appendix_gen.yml
 	"Baseline" should be referred to as "NAA" in these scripts. Write the file names without quotation marks.
 	4) Define the `report_type` variable as either "flow", "elevation", "diversion", or "water supply" for a CalSim appendices, "temperature" for a HEC5Q appendix, 
 	or "EC", "Cl", or "Position" for a DSM2 (salinity) appendices.
-	5) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space.
+   5) If running a temperature report:
+      1) In the `compliance_fields` list, list the compliance location fields. For the 2021LTO mixed compliance location logic, this should be set to ['AIRPORT', 'BLW CLEAR CREEK', 'HWY44']
+      2) In the `compliance_dict`, set the keys to the SHASTABIN_ and the values to the corresponding compliance locations used for those SHASTABIN_ types. For the 2021 LTO mixed compliance location logic, use the following: 
+   ```
+     compliance_dict = {
+        1: 'AIRPORT',          #Shasta Bin1A has the most downstream compliance location
+        2: 'AIRPORT',          #Shasta Bin1B has the most downstream compliance location
+        3: 'BLW CLEAR CREEK',  #Shasta Bin2A has the middle compliance location
+        4: 'BLW CLEAR CREEK',  #Shasta Bin2B has the middle compliance location
+        5: 'HWY44',            #Shasta Bin3A has the most upstream compliance location
+        6: 'HWY44',            #Shasta Bin3B has the most upstream compliance location
+    }
+   ```
+	6) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space.
 	7) Make sure `dss_path` variable correctly references the DSS_contents output file you copied over. Also, make sure that the parent directory is correct
 	for where you have your eis_appendix_gen local directory stored. 
     8) Make sure that `wy_flags_path`, `doc_name`, `location_cw_path`, `storage_elevation_table`, and `new_doc` contain the correct parent directory for your local copy of eis_appendix_gen.
 	9) Set `use_calendar_yr` to True to use calendar year-year type sorting. Set `use_calendar_yr` to False to use water year-year type sorting. 
    10) Run the EISAppendixGen.py script
-4. The EIS Appendix output will be a Microsoft Word Document in the eis_appendix_gen directory under the name f"appendix_final_{report_type}.docx". 
-5. After the script finishes running, open the Word document and **Ctrl+A** to select all. Then press **F9** to generate the table and figure numbers. 
+5. The EIS Appendix output will be a Microsoft Word Document in the eis_appendix_gen directory under the name f"appendix_final_{report_type}.docx". 
+6. After the script finishes running, open the Word document and **Ctrl+A** to select all. Then press **F9** to generate the table and figure numbers. 
+
+## Water Temperature Contour Plots Generation
+Action 5 documentation also included contour plots of temperatures along the Sacramento River, at 5 selected locations. Distances of locations downstream are approximate. This script also uses monthly inputs. 
+1) Open create_contour_plots.py
+2) Edit `input_dss_fn` to be the excel file name that contains the temperature at locations you want included in the contour plots. This file must be in the format outputted by the DSS reader, in a monthly timestep. 
+3) Modify `outdir` to be your desired output directory. 
+4) Modify `i_calendar_yrs` to be the years you want to generate contour plots.
+5) Modify locations to include in the contour plot (`df_contour_input` subset in line 153) and their corresponding river miles (`da_river_miles` in line 154) as needed. 
+6) Run create_contour_plots.py
 
 ## Usage (Water Quality Compliance)
 1. Create a folder called `studies` and place all DSM2 output files in the folder. These will typically be the files that end with 'EC_p'.
