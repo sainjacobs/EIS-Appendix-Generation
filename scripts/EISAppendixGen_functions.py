@@ -26,6 +26,7 @@ import copy
 import subprocess
 from pydsstools.heclib.dss import HecDss
 
+pd.options.mode.chained_assignment = None
 
 def get_locations(location_crosswalk_path, fields):
     """
@@ -446,7 +447,7 @@ def parse_dssReader_annualavg(dss_path, runs, field, report_type, convert_to_ele
 
     return df_all_runs
 
-def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = '', shastabin_data = ''):
+def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_elevation= False, convert_to_cl=False,  orig_unit = 'TAF', storage_elevation_fn = '', shastabin_data = '', use_calendar_yr=False):
     """
     Reads DSS output from reader for desired runs and field. Returns a dataframe with calendar year as the index and months (Jan - Dec) + shastabin flag, as columns.
 
@@ -456,15 +457,23 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
         Path and file name for xlsx file containing DSSReader Output
     runs: list of strings
         Names of the runs to be processed
-    report_type: string
-        Type of report being generated. Used to check whether or not it's a temperature report
     field: string
         Current field being processed
+    report_type: string
+        Type of report being generated. Used to check whether or not it's a temperature report
     convert_to_elevation: bool
         True if you are converting storage to elevation. Need to also set the orig_unit field to the original storage
         unit
+    convert_to_cl: bool
+        If the values need to be converted to chloride
     orig_unit: str
         Original storage unit (Currently only have "TAF" implemented). Used for storage to elevation conversion.
+    storage_elevation_fn: str
+        file name of storage-elevation table data. See note in function description.
+    shastabin_data: str
+        Path to shastabin data
+    use_calendar_yr: bool
+        Group by the calendar year (True) or water year (False)
 
     """
     #Read DSS Output from specified path for specified field
@@ -472,7 +481,10 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
     dss_output = dss_output[['Date',"Month", "Scenario", field]]
 
     #Create a column for the Calendar Year (will be used to find the corresponding Shasta Bin type)
-    dss_output['CalendarYear'] = dss_output.Date.dt.year
+    if use_calendar_yr:
+        dss_output['Year'] = dss_output.Date.dt.year
+    else:
+        dss_output['Year'] = np.where(dss_output.Date.dt.month < 10, dss_output.Date.dt.year, dss_output.Date.dt.year + 1)
 
     #Read in shastabin_ data
     if shastabin_data!= "":
@@ -486,7 +498,7 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
         #scenario = dss_output.loc[0, "Scenario"]
         #dss_output.drop(columns = ["Scenario"], inplace = True)
 
-        monthly_data = dss_output.groupby(["Scenario", "CalendarYear", "Month"]).mean()
+        monthly_data = dss_output.groupby(["Scenario", "Year", "Month"]).mean()
         monthly_data.reset_index(inplace=True)
         dss_output = monthly_data
 
@@ -520,7 +532,7 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
 
         #If the run has the shasta action in it (and has variable of "SHASTABIN_" in the CalSim DV file), then add a column for the shastabin.
         if run in df_shastabin.Scenario.values:
-            run_df['Shastabin'] = run_df.apply(lambda l: df_shastabin.loc[(df_shastabin.index == l.CalendarYear)&(df_shastabin.Scenario == run)].SHASTABIN_.item(), axis = 1)
+            run_df['Shastabin'] = run_df.apply(lambda l: df_shastabin.loc[(df_shastabin.index == l.Year)&(df_shastabin.Scenario == run)].SHASTABIN_.item(), axis = 1)
 
         run_df["month_name"] = " "
 
@@ -537,13 +549,13 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
         scenario = run_df.Scenario.unique()[0]
         run_df.drop(columns = ["Scenario"], inplace = True)
         transposed_df = pd.DataFrame(
-            columns=["CalendarYear", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+            columns=["Year", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
         #One row for each WY consisting of a column for each monthly EC value
-        for year in np.unique(run_df["CalendarYear"]):
-            year_t = run_df.loc[run_df["CalendarYear"] == year]
+        for year in np.unique(run_df["Year"]):
+            year_t = run_df.loc[run_df["Year"] == year]
             year_t.set_index("month_name", inplace=True)
             year_t = year_t.transpose()
-            year_t.insert(0, "CalendarYear", year)
+            year_t.insert(0, "Year", year)
             if scenario in df_shastabin.Scenario.values:
                 year_t.insert(1, "SHASTABIN_", df_shastabin.loc[(df_shastabin.index== year)&(df_shastabin.Scenario == scenario)].SHASTABIN_.item())
             else:
@@ -1327,7 +1339,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     for fig_index in range(len(dfs_calendaryr)):
         # Dataset for this alt
         df_alt_data = dfs_calendaryr[fig_index].copy(deep = True)
-        df_alt_data.set_index('CalendarYear', inplace = True)
+        df_alt_data.set_index('Year', inplace = True)
 
         #Subset to only the month of interest
         df_month = df_alt_data[[ 'SHASTABIN_', month]]
@@ -1344,7 +1356,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
         #Shastabin_ == 5 or 6 means compliance location is at Sac Rv at HWY 44
         df_month['compliance'] = df_month.apply(lambda l: False if np.isnan(l.SHASTABIN_) else (True if compliance_dict[l.SHASTABIN_] == location else False), axis = 1)
 
-        df_month_alts[alts[fig_index]] = df_month[[month, 'Exc Prob']].reset_index(drop = False).set_index("Exc Prob")['CalendarYear']
+        df_month_alts[alts[fig_index]] = df_month[[month, 'Exc Prob']].reset_index(drop = False).set_index("Exc Prob")['Year']
 
         #Percentage array from 0 to 100 (used for xtick labels)
         percentages = range(0, 101, 10)
@@ -1916,7 +1928,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             fields)  # Returns a list of tuples with the type of field (elevation or storage). Ex: [("S_TRNTY", 'Storage'), ("S_TRNTY", 'Elevation'), ("S_SHSTA", 'Storage'),  ("S_SHSTA", 'Elevation')]
     elif report_type in ['EC', 'Position', 'Cl']:
         fields = [(field, report_type) for field in fields]
-    locations = get_compliance_locations(location_cw_path, fields)  # Get location names for each field
+    locations = get_locations(location_cw_path, fields)  # Get location names for each field
     location_params = get_locations_params(location_cw_path, fields)  # Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields)  # Get the wytype to use with each field.
 
@@ -1995,7 +2007,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             dfs = parse_dssReader_output(dss_path, alts, location, report_type)
 
         if location in compliance_fields:
-            dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alts, location, report_type, shastabin_data = shastabin_data_path)
+            dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alts, location, report_type, shastabin_data = shastabin_data_path, use_calendar_yr=use_calendar_yr)
 
         # Get table value name depending on type of report
         if report_type == "flow":
@@ -2251,8 +2263,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 table = monthly_ranked_dfs[month_name].reset_index(drop = False)
                 table.rename(columns = {'Exc Prob': "Exceedance Probability (%)"}, inplace = True)
                 month_str = datetime.strptime(file.split("_", 2)[1],'%b').strftime('%B')
-                table_title = f"Calendar Year corresponding to {month_str} exceedance values at {locations[field_index]}, for each alternative."
-
+                if use_calendar_yr:
+                    table_title = f"Calendar Year corresponding to {month_str} exceedance values at {locations[field_index]}, for each alternative."
+                else:
+                    table_title = f"Water Year corresponding to {month_str} exceedance values at {locations[field_index]}, for each alternative."
                 #Add table caption
                 add_caption_byfield(doc, "Table", table_title_prefix, table_title,
                                     custom_style="Table Caption")
