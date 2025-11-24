@@ -43,21 +43,21 @@ Set up an environment by running `conda env create -f appendix_gen.yml`
    5) In the process_shastabin.py file if this repository, change `s_input_data` to point to the DSS_contents.xlsx output of dssReader.py
    6) Run process_shastabin.py
 3. Run the EIS Appendix Generation scripts
-	0) **Optional**: Preprocess the WY type datasets to get the final water year type determination for each water year. **This only needs to be done once if your climate scenario is the same.** 
-       1) Open process_wytypes.py and assign `s_dvfile` to the file path for the DSS_contents.xlsx file containing CalSim output Water year type variables. Assign `s_output` to the path corresponding to /inputs/wy_flags.xlsx. 
-       2) Run process_wytypes.py.
-	1) Open the EIS_appendix_gen_....py file corresponding to the type of report you wish to create. 
-	2) In the `fields` list, specify the same field variables that you specified in the DSS Reader to retrieve from the DSS files. These correspond to the B part
-	in the DSS pathname. Suggested fields are below in the Suggested Fields section and provided in the python file.
-	3) Define the `alts` list, specify the same run names that you provided in the DSSReader (such as NAA, Alt1, etc.) All names should be exactly the same, except that
-	"Baseline" should be referred to as "NAA" in these scripts.
-	4) If creating a CalSim or salinity appendix, define the `report_type` variable as either "flow", "elevation", or "diversion" for a CalSim appendices or "EC", "Cl", or "Position" for a DSM2 (salinity) appendix.
+   0) **Optional**: Preprocess the WY type datasets to get the final water year type determination for each water year. **This only needs to be done once if your climate scenario is the same.** 
+      1) Open process_wytypes.py and assign `s_dvfile` to the file path for the DSS_contents.xlsx file containing CalSim output Water year type variables. Assign `s_output` to the path corresponding to /inputs/wy_flags.xlsx. 
+      2) Run process_wytypes.py.
+   1) Open the EIS_appendix_gen_....py file corresponding to the type of report you wish to create. 
+   2) In the `fields` list, specify the same field variables that you specified in the DSS Reader to retrieve from the DSS files. These correspond to the B part
+   in the DSS pathname. Suggested fields are below in the Suggested Fields section and provided in the python file.
+   3) Define the `alts` list, specify the same run names that you provided in the DSSReader (such as NAA, Alt1, etc.) All names should be exactly the same, except that
+   "Baseline" should be referred to as "NAA" in these scripts.
+   4) If creating a CalSim or salinity appendix, define the `report_type` variable as either "flow", "elevation", or "diversion" for a CalSim appendices or "EC", "Cl", or "Position" for a DSM2 (salinity) appendix.
    5) if creating a compliance appenddix, set `scenario_names` to contain the names and files for each alternative. The structure of this dictionary is '<display name>': '<file name>'.
-	6) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space. Recommended options are provided.
-	7) Make sure `dss_path` variable correctly references the DSS_contents output file. Use the original units for temperature, salinity, and compliance, use TAF for elevations and water supply, and use CFS for diversions and flow.
+   6) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space. Recommended options are provided.
+   7) Make sure `dss_path` variable correctly references the DSS_contents output file. Use the original units for temperature, salinity, and compliance, use TAF for elevations and water supply, and use CFS for diversions and flow.
    8) Set `doc_name` and `new_doc` to full paths to the locations to hold a temporary document and final document. These must be full paths with no spaces (no OneDrive) for VBA to work.
    9) Make sure that any other variables (`template`, `wy_flags_path`, `location_cw_path`, `storage_elevation_table`, `use_lumped_table_captions`, `shastabin_data_path` (temperature only), `compliance_fields` (temperature only), and `compliance_dict` (temperature only)) are set the correct values, but these should not need to change.
-	For all appendices except for compliance and water supply, set `use_calendar_yr` to True to use calendar year-year type sorting. Set `use_calendar_yr` to False to use water year-year type sorting. 
+   For all appendices except for compliance and water supply, set `use_calendar_yr` to True to use calendar year-year type sorting. Set `use_calendar_yr` to False to use water year-year type sorting. 
    11) Run the EIS_appendix_gen_....py script
 5. The EIS Appendix output will be a Microsoft Word Document with the `new_doc` location/name. 
 6. After the script finishes running:
@@ -101,6 +101,8 @@ These are the fields for each attachment in the correct order. Determined when r
 ### Cl:
 'ROLD024','RSAN007','CLIFTONCOURT','CHDMC006','SLBAR002'
 
+### Water Temperature Contour Plots (for the DSS reader):
+"BLW SHASTA", 'BLW KESWICK','HWY44','BLW CLEAR CREEK','AIRPORT'
 
 ## Support
 Please contact rlucas@usbr.gov for support.
