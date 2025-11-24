@@ -7,13 +7,13 @@ Uses output DSS_contents.xlsx file from the DSS Reader
 @author: cyu
 """
 
-import os, sys
 import pandas as pd
-
-s_input_data = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents.xlsx"  #Excel file with Shastabin_ timeseries from Calsim Runs.
-                                                                            #Must include all relevant scenarios.
-                                                                            #This is the output from reading in the dss file using the dssreader script.
-s_output = r"..\inputs\shasta_bin_info.xlsx" #File
+# Excel file with SHASTABIN_ timeseries from Calsim Runs.
+# Must include all relevant scenarios.
+# This is the output from reading in the dss file using the dssreader script.
+s_input_data = r""
+# output file
+s_output = r"..\inputs\shasta_bin_info.xlsx"
 
 #Read in the dss reader excel file and subset the dataframe to only include relevant columns
 dss_pathb = ['SHASTABIN_']
