@@ -24,12 +24,12 @@ Set up an environment by running `conda env create -f appendix_gen.yml`
 ## Usage
 1. Run the DSS Reader 
 	1) Open dssReader.py in your local version of the CalSim DSS Reader. 
-	2) In line 35, set the `model` variable equal to the string name of the type of model you wish to interpret data from
+	2) In line 20, set the `model` variable equal to the string name of the type of model you wish to interpret data from
 	(options are "CALSIM", "HEC5Q" or "DSM2")
-	3) Beginning in line 37 in the `runs` list, for each list entry in `runs`, enter the name of each of your dss files in the parentheses along with the name of the run 
+	3) Beginning in line 29 in the `runs` list, for each list entry in `runs`, enter the name of each of your dss files in the parentheses along with the name of the run 
 	(such as Baseline, Alt1, etc.). Refer to the NAA scenario as "Baseline". A NAA/Baseline scenario must be included in the runs for 
 	the appendix generation script to function properly down the line. Don't forget the ".dss" file extension when you are specifying file names.
-	4) Beginning line 56, in the `add_field_list`, specify the field variables that you want to retrieve from the DSS files. These correspond to the B part in the DSS pathname. Suggested fields are below in the Suggested Fields section.
+	4) Beginning line 44, in the `add_field_list`, specify the field variables that you want to retrieve from the DSS files. These correspond to the B part in the DSS pathname. Suggested fields are below in the Suggested Fields section.
 	5) Run dssReader.py.
 	6) When the DSS Reader has finished running, open the calsim_dss_reader directory and find the DSS Reader outputs. There should
 	be three files: DSS_contents.xlsx, DSS_contents_CFS.xlsx, and DSS_contents_TAF.xlsx. The first output file preserves all units
