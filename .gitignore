@@ -1,0 +1,11 @@
+scripts/month_plots
+scripts/stat_plots
+scripts/supply_plots
+scripts/water_qual_csvs
+scripts/contour_plots
+scripts/wq_plots
+studies/
+.idea
+scripts/__pycache__
+*.docx
+!inputs/*.docx
