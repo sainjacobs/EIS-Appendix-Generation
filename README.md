@@ -65,7 +65,8 @@ Set up an environment by running `conda env create -f appendix_gen.yml`
    2. For the Heading 2 Numbering, you may have to adjust it to match the appendix_prefix variable (Ex: 'F.2.2') by right-clicking and selecting 'Adjust List Indents'. Then modify the numbering to match appendix_prefix under 'Enter formatting for number:'
 
 ## Water Temperature Contour Plots Generation
-Action 5 documentation also included contour plots of temperatures along the Sacramento River, at 5 selected locations. Distances of locations downstream are approximate. This script also uses monthly inputs. 
+Previous documentation also included contour plots of temperatures along the Sacramento River, at 5 selected locations. The create_contour_plots.py file creates these plots.
+Distances of locations downstream are approximate. This script also uses monthly inputs. 
 1) Open create_contour_plots.py
 2) Edit `input_dss_fn` to be the excel file name that contains the temperature at locations you want included in the contour plots. This file must be in the format outputted by the DSS reader, in a monthly timestep. 
 3) Modify `outdir` to be your desired output directory. 
@@ -76,7 +77,7 @@ Action 5 documentation also included contour plots of temperatures along the Sac
 
 ## Suggested Fields
 
-These are the fields for each attachment in the correct order. Determined when running the Action 5 appendices to match what was done in the LTO.
+These are the recommended fields for each attachment in the correct order. Determined when last creating appendices to match what was done in the LTO.
 
 ### Elevation:
 "S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"
