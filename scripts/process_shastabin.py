@@ -1,10 +1,6 @@
 """
-
 Process Shastabins_ for alternatives that have them.
 Uses output DSS_contents.xlsx file from the DSS Reader
-(Fields: SHASTABIN_)
-
-@author: cyu
 """
 
 import pandas as pd

@@ -1,20 +1,15 @@
-# -*- coding: utf-8 -*-
 """
-Created on Fri May 16 09:46:37 2025
-
-Process WYTypes to create the wyflags.xlsx file. 
+Process WYTypes to create the wyflags.xlsx file.
 Uses output DSS_contents.xlsx file from the DSS Reader 
 (Fields: WYT_TRIN_, WYT_SAC_, WYT_SJR_).
 For WY 1921, grab Oct-1921's WYType.
-
-@author: cyu
 """
 
 import os, sys
 import pandas as pd
 from datetime import datetime
 
-s_dvfile = r"C:\calsim_gits\dss_reader_git\calsim_dss_reader\DSS_contents_wyt.xlsx"
+s_dvfile = r""
 s_output = r"..\inputs\wy_flags.xlsx"
 
 #Dictionary specifying the dss part b name containing wytype information, the 
