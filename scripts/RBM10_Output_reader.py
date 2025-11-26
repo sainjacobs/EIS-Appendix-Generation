@@ -7,16 +7,42 @@ import time
 
 
 def convert_to_numeric(s):
-    # todo: doc string
-    # todo: comments
+    """
+    Converts a string to numeric
+    Parameters
+    ----------
+    s: str
+    Number in string format
+
+    Returns
+    -------
+    num: float or int
+    Input sting in numeric format
+
+    """
+    # first convert to a float
     num = float(s)
+
+    # if it is an integer, convert to an integer
     if num.is_integer():
         return int(num)
+    # return
     return num
 
  # Function to convert decimal year to datetime
 def decimal_year_to_datetime(decimal_year):
-    #todo: doc string
+    """
+    Converts a decimal year to datetime
+    Parameters
+    ----------
+    decimal_year: float
+        Date as a year decimal number
+
+    Returns
+    -------
+    date_time: datetime
+        Input date as a datetime object
+    """
 
     year = int(decimal_year)  # Extract the integer part (year)
     remainder = decimal_year - year  # Extract the decimal part
@@ -35,11 +61,33 @@ def decimal_year_to_datetime(decimal_year):
 
 
 def decimal_year_to_date(dy):
+    """
+    Converts a decimal year to datetime, similar to decimal_year_to_datetime but will not have time
+    Parameters
+    ----------
+    dy: float
+        Date as a year decimal number
+
+    Returns
+    -------
+    date_time: datetime
+        Input date as a datetime object
+    """
+    # Extract the integer part (year)
     year = int(dy)
+    # Extract the decimal part
     remainder = dy - year
+
+    # Start on Jan 1 of the year
     start = datetime(year, 1, 1)
+
+    # get a year later
     end = datetime(year + 1, 1, 1)
+
+    # amount of days in the year (365 or 366)
     delta = end - start
+
+    # multiply by the decimal amount
     return start + timedelta(days=remainder * delta.days)
 
 def overwrite_excel_with_df(filename, df, sheet_name='Sheet1'):
@@ -199,26 +247,13 @@ if __name__ == "__main__":
     # RBM10 Runs
     runs = [
         ["Baseline",
-         (r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-07 naa\full\rbm10")],
-        ["Alt 1", (
-            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-07 trinity alt1\full\rbm10")],
-        ["Alt 2a", (
-            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-31 Alt2a_2022MED_SLR15_03302025\full\rbm10")],
-        ["Alt 2b", (
-            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-11 Alt2b_121924_flowadj16\full\rbm10")],
-        ["Alt 3", (
-            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-31 Alt3_2022MED_SLR15_03302025\full\rbm10")],
-        ["Alt 4",
-         (r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-06 alt4\full\rbm10")],
-        ["Alt 6", (
-            r"C:\Users\cyu\trinity_hec5q_github\alt6_20250508\2025-05-09 Alt6_wTUCP_2022MED_CCWD\full\rbm10")],
-        ["Alt 7", (
-            r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\2025-03-14 alt7_02272025_numerical_revision\full\rbm10")],
+         (r"")],
+        ["Alt 1",
+         (r"")]
     ]
 
     s_scenario_labels, s_RBMfilelocations = zip(*runs)
-    s_excel_file_location = r"C:\calsim_gits\dss_reader_git\calsim_dss_reader\DSS_contents_rbm10_additionalNodes.xlsx"
-        #r"C:\Users\cyu\trinity_hec5q_github\alt_temperature_runs\DSS_contents_Alt1_NAA.xlsx"
+    s_excel_file_location = r""
 
     o_rbm10_results = read_output(s_RBMfilelocations,s_scenario_labels,s_excel_file_location)
 
