@@ -16,7 +16,7 @@ and the WYType averages in the last 5 rows of each table.
 - Automatic caption numbering for figure and tables inherits the Heading 2 numbering. 
 
 ## Installation
-You will need local copies of this repo and the CalSim DSS Reader: https://gitlab.bor.doi.net/bdo-modeling/calsim_dss_reader
+You will need local copies of this repo and the CalSim DSS Reader: https://github.com/DOI-BOR/DSS-to-Excel-Reader
 
 ## Environment Set Up
 Set up an environment by running `conda env create -f appendix_gen.yml`
@@ -105,4 +105,4 @@ These are the fields for each attachment in the correct order. Determined when r
 "BLW SHASTA", 'BLW KESWICK','HWY44','BLW CLEAR CREEK','AIRPORT'
 
 ## Support
-Please contact rlucas@usbr.gov for support.
+If an issue is found, please submit a ticket through the GitHub issue tracking system.
