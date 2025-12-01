@@ -124,7 +124,7 @@ def generate_contour_plot(i_year, s_yrly_contour_dir, df_results_temperature, da
 
 if __name__ == '__main__':
     #DSS contents file from the dss reader
-    input_dss_fn = r"C:\Users\fnufferrodriguez\OneDrive - DOI\Desktop\calsim_dss_reader\DSS_contents_temp_test.xlsx"
+    input_dss_fn = r""
 
     #Output directory for plots
     outdir = r'./contour_plots'
