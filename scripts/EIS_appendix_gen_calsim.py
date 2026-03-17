@@ -1,4 +1,5 @@
 from EISAppendixGen_functions import create_appendix
+import os
 
 if __name__ == "__main__":
 
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
     # alternatives to include
-    alts = ['NAA', "Action 5"]
+    alts = ['NAA', 'Alt2v2_woTUCP']
 
     """
     Specify whether report is "flow", "elevation", or "diversion"
@@ -36,24 +37,30 @@ if __name__ == "__main__":
     # Prefix for tables and figures in appendix
     appendix_prefix = " F.2.2"  # F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion
 
+    # Define base working directory for reference
+    base_dir = r"C:\20251211_BA_Modeling_Appendix\EIS_Appendix_Generation\EIS-Appendix-Generation-main"
+
+    # Change directory to scripts: SN 20260303
+    os.chdir(os.path.join(base_dir, "scripts"))
+
     # Path to file with location code crosswalk
-    location_cw_path = r"..\inputs\location_code_crosswalk_CalSim.xlsx"
+    location_cw_path = os.path.join(base_dir, r"inputs\location_code_crosswalk_CalSim.xlsx")
 
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
     # Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    dss_path = r""
+    dss_path =  os.path.join(base_dir, r"inputs\DSS_contents.xlsx")
 
     # Path to file with WY Typing data
-    wy_flags_path = "..\inputs\wy_flags.xlsx"
+    wy_flags_path = os.path.join(base_dir, r"inputs\wy_flags.xlsx")
 
     # Path to storage-elevation table data
-    storage_elevation_table = r"..\inputs\storage_elevation_table.xlsx"
+    storage_elevation_table = os.path.join(base_dir, r"inputs\storage_elevation_table.xlsx")
 
     # Windows command prompt can't save to OneDrive bc of the space in the file path, save locally instead
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
-    template = r"..\inputs\template_v2-fonts.docx"
+    template = os.path.join(base_dir, r"inputs\template_v2-fonts.docx")
     doc_name = r"appendix_temp.docx"
     # Name of final word doc
     new_doc = rf"appendix_final_{report_type}.docx"

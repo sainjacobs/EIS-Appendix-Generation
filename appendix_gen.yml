@@ -2,7 +2,7 @@ name: eis_appendix_gen
 channels:
   - conda-forge
 dependencies:
-  - python=3.9
+  - python=3.10
   - numpy=1.26.4
   - python-docx
   - pandas
@@ -10,4 +10,4 @@ dependencies:
   - openpyxl
   - pip
   - pip:
-      - pydsstools==2.3.2
+      - pydsstools

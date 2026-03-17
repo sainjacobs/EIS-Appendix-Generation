@@ -342,10 +342,11 @@ def parse_dssReader_output(dss_path, runs, field, report_type, convert_to_elevat
     # Create df for each alternative/run and reformat
     run_dfs = []
     for run in runs:
-        if run == "NAA":
-            run_df = dss_output.loc[dss_output["Scenario"] == "Baseline"]
-        else:
-            run_df = dss_output.loc[dss_output["Scenario"] == run]
+        # if run == "NAA":
+        #     run_df = dss_output.loc[dss_output["Scenario"] == "Baseline"]
+        # else:
+        #     run_df = dss_output.loc[dss_output["Scenario"] == run]
+        run_df = dss_output.loc[dss_output["Scenario"] == run]  # SN 20260303
 
         run_df["month_name"] = " "
 
