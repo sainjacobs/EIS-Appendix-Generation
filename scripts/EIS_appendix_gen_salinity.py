@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
 
     # Define base working directory for reference
-    base_dir = r"C:\20251211_BA_Modeling_Appendix\EIS_Appendix_Generation\EIS-Appendix-Generation-main"
+    base_dir = r"C:\Github\EIS-Appendix-Generation"
 
     # Change directory to scripts: SN 20260303
     os.chdir(os.path.join(base_dir, "scripts"))

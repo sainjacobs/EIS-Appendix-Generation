@@ -38,7 +38,7 @@ if __name__ == "__main__":
     appendix_prefix = " F.2.2"  # F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion
 
     # Define base working directory for reference
-    base_dir = r"C:\20251211_BA_Modeling_Appendix\EIS_Appendix_Generation\EIS-Appendix-Generation-main"
+    base_dir = r"C:\Github\EIS-Appendix-Generation"
 
     # Change directory to scripts: SN 20260303
     os.chdir(os.path.join(base_dir, "scripts"))
