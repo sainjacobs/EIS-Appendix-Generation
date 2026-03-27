@@ -1336,6 +1336,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
 
     #Create figures
     df_month_alts = pd.DataFrame(columns = alts)
+    monthly_export_rows = []
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
     for fig_index in range(len(dfs_calendaryr)):
         # Dataset for this alt
@@ -1358,6 +1359,9 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
         df_month['compliance'] = df_month.apply(lambda l: False if np.isnan(l.SHASTABIN_) else (True if compliance_dict[l.SHASTABIN_] == location else False), axis = 1)
 
         df_month_alts[alts[fig_index]] = df_month[[month, 'Exc Prob']].reset_index(drop = False).set_index("Exc Prob")['Year']
+        df_month_export = df_month.reset_index(drop=False).rename(columns={month: fig_value})
+        df_month_export.insert(0, "Alternative", alts[fig_index])
+        monthly_export_rows.append(df_month_export[["Alternative", "Year", "Exc Prob", fig_value, "compliance"]])
 
         #Percentage array from 0 to 100 (used for xtick labels)
         percentages = range(0, 101, 10)
@@ -1404,9 +1408,14 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     # Add leading zeros to month numbers
     if len(month_number) < 2:
         month_number = str(0) + month_number
+    output_basename = month_number + "_" + month + "_monthly_exceedance"
     # Save figure to month directory
-    plt.savefig(month_directory + "/" + month_number + "_" + month + "_monthly_exceedance" + ".png", dpi = 300)
+    plt.savefig(month_directory + "/" + output_basename + ".png", dpi = 300)
     plt.close()
+    pd.concat(monthly_export_rows, ignore_index=True).to_csv(
+        os.path.join(month_directory, output_basename + ".csv"),
+        index=False
+    )
     return df_month_alts
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors, report_type=''):
@@ -1447,6 +1456,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     else:
         fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
 
+    monthly_export_rows = []
     for fig_index in range(len(dfs)):
         # Dataset for this alt
         df_alt_data = dfs[fig_index].copy(deep=True)
@@ -1459,6 +1469,11 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         df_month.dropna(subset=[month], inplace=True)
         df_month['Rank'] = range(1, len(df_month) + 1)
         df_month['Exc Prob'] = df_month["Rank"] / (df_month.shape[0] + 1) * 100  # m/(N+1)
+        df_month_export = df_month.reset_index(drop=False).rename(columns={month: fig_value})
+        if df_month_export.columns[0] != 'Year':
+            df_month_export.rename(columns={df_month_export.columns[0]: 'Year'}, inplace=True)
+        df_month_export.insert(0, "Alternative", alts[fig_index])
+        monthly_export_rows.append(df_month_export[["Alternative", "Year", "Exc Prob", fig_value]])
 
         # plot exceedance probability vs monthly EC
         percentages = range(0, 101, 10)
@@ -1494,12 +1509,18 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
 
     if report_type == 'water supply':
         # Save figure to directory
-        plt.savefig(month_directory + "/" + month + ".png")
+        output_basename = month
+        plt.savefig(month_directory + "/" + output_basename + ".png")
     else:
         # Save figure to month directory
-        plt.savefig(month_directory + "/" + month_number + "_" + month + "_monthly_exceedance" + ".png")
+        output_basename = month_number + "_" + month + "_monthly_exceedance"
+        plt.savefig(month_directory + "/" + output_basename + ".png")
 
     plt.close()
+    pd.concat(monthly_export_rows, ignore_index=True).to_csv(
+        os.path.join(month_directory, output_basename + ".csv"),
+        index=False
+    )
 
 def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles, line_colors):
     """
@@ -1590,13 +1611,22 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         os.makedirs(stat_directory)
 
     fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    stat_export_rows = []
     for fig_index in range(len(stat_fig_dfs)):
         if stat == "Full Simulation Period":
-            axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index]["Full Simulation Period Average"], color=line_colors[fig_index],
+            stat_column = "Full Simulation Period Average"
+            axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
                      linestyle=line_styles[fig_index])
         else:
-            axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat], color=line_colors[fig_index],
+            stat_column = stat
+            axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
                      linestyle=line_styles[fig_index])
+
+        df_stat_export = stat_fig_dfs[fig_index][["month", stat_column]].copy(deep=True)
+        df_stat_export.rename(columns={stat_column: fig_value}, inplace=True)
+        df_stat_export.insert(0, "Statistic", stat)
+        df_stat_export.insert(0, "Alternative", alts[fig_index])
+        stat_export_rows.append(df_stat_export[["Alternative", "Statistic", "month", fig_value]])
 
         # Save this to position legend correctly
         axbox = axs.get_position()
@@ -1609,8 +1639,13 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         plt.legend(labels=alts, loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
 
     # Save stat fig to directory
-    plt.savefig(stat_directory + "/" + stat[:5] + "_exceedance" + ".png")
+    output_basename = stat[:5] + "_exceedance"
+    plt.savefig(stat_directory + "/" + output_basename + ".png")
     plt.close()
+    pd.concat(stat_export_rows, ignore_index=True).to_csv(
+        os.path.join(stat_directory, output_basename + ".csv"),
+        index=False
+    )
 
 def order_elevation_storage_fields(fields):
     """
@@ -3845,3 +3880,4 @@ def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
     else:
         # Instructions on how to finish formatting numbered captions.
         print("After running this script, \n1. Open Word file and Ctrl+A to select all. Then F9 to update caption numbering.")
+
