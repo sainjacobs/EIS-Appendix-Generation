@@ -1,3 +1,4 @@
+import os
 from EISAppendixGen_functions import create_compliance_appendix
 
 if __name__ == '__main__':
@@ -22,13 +23,18 @@ if __name__ == '__main__':
     # this is the template for the Word doc, generally doesn't need to change
     template = r"..\inputs\template_v2-fonts.docx"
 
+    # Output directory for generated Word docs and plot folders.
+    output_folder = r"C:\20251211_BA_Modeling_Appendix\outputs_gitRepo"
+
     # Windows command prompt can't save to OneDrive bc of the space in the file path, save locally instead
     # Pass absolute paths to VBS
     # name of the temporary document
-    doc_name = rf"temp_appendix.docx"
+    doc_name = os.path.join(output_folder, "temp_appendix.docx")
     # Name of final word doc
-    new_doc = rf"appendix_water_quality_compliance_supply.docx"
+    new_doc = os.path.join(output_folder, "appendix_water_quality_compliance_supply.docx")
 
     ####END OF USER INPUTS #######
+
+    os.makedirs(output_folder, exist_ok=True)
 
     create_compliance_appendix(scenario_names, template, doc_name, new_doc)

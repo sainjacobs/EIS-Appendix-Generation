@@ -57,16 +57,22 @@ if __name__ == "__main__":
     # Path to storage-elevation table data
     storage_elevation_table = os.path.join(base_dir, r"inputs\storage_elevation_table.xlsx")
 
+    # Output directory for generated Word docs and plot folders.
+    output_folder = r"C:\20251211_BA_Modeling_Appendix\outputs_gitRepo"
+
     # Windows command prompt can't save to OneDrive bc of the space in the file path, save locally instead
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
     template = os.path.join(base_dir, r"inputs\template_v2-fonts.docx")
-    doc_name = r"appendix_temp.docx"
+    doc_name = os.path.join(output_folder, "appendix_temp.docx")
     # Name of final word doc
-    new_doc = rf"appendix_final_{report_type}.docx"
+    new_doc = os.path.join(output_folder, f"appendix_final_{report_type}.docx")
 
     ####END OF USER INPUTS #######
+
+    os.makedirs(output_folder, exist_ok=True)
 
     # call the corresponding function for the appendix
     create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=use_calendar_yr,
                         use_lumped_table_captions=use_lumped_table_captions, storage_elevation_table=storage_elevation_table)
+

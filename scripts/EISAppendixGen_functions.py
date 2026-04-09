@@ -1,3 +1,4 @@
+from matplotlib import ticker
 import pandas as pd
 import numpy as np
 import docx
@@ -1333,6 +1334,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     # # Read in SHASTABIN_ data
     # if shastabin_data != "":
     #     df_shastabin = pd.read_excel(shastabin_data)
+    #ToDo: check if xlims need to be added. Also, check y-axis formatting
 
     #Create figures
     df_month_alts = pd.DataFrame(columns = alts)
@@ -1418,7 +1420,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     )
     return df_month_alts
 
-def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors, report_type=''):
+def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors, report_type='', xlims = [0, 100]):
     """
     Generates and saves individual month plots
 
@@ -1484,7 +1486,6 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
 
-
         axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
 
@@ -1505,7 +1506,9 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
             month_number = str(0) + month_number
 
     # flip x-axis
+    axs.set_xlim(xlims)
     axs.invert_xaxis()
+    axs.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))  # y-axis formatting with commas for thousands
 
     if report_type == 'water supply':
         # Save figure to directory
@@ -1522,7 +1525,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         index=False
     )
 
-def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles, line_colors):
+def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles, line_colors, xlims = [0, 100]):
     """
     Generates and saves individual month plots
 
@@ -1539,6 +1542,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     line_colors: list of strings
         Colors for lines on plots
     """
+    #ToDo: check if xlims need to be added. Also, check y-axis formatting
     # Check for/create directory to store monthly exceedance plots
     if not os.path.exists(yr_directory):
         os.makedirs(yr_directory)
@@ -1563,7 +1567,9 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
 
     axs.set_xticks(percentages)
     axs.set_xticklabels(percentage_labels)
+    axs.set_xlim(xlims)
 
+    axs.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))  # y-axis formatting with commas for thousands
     axs.set_ylabel(fig_value)
     axs.set_xlabel("Exceedance Probability")
 
@@ -1621,6 +1627,8 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
             stat_column = stat
             axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
                      linestyle=line_styles[fig_index])
+        axs.set_xlim(stat_fig_dfs[fig_index]["month"].iloc[0], stat_fig_dfs[fig_index]["month"].iloc[-1])
+        axs.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))   # y-axis formatting with commas for thousands
 
         df_stat_export = stat_fig_dfs[fig_index][["month", stat_column]].copy(deep=True)
         df_stat_export.rename(columns={stat_column: fig_value}, inplace=True)
@@ -1694,6 +1702,8 @@ def order_elevation_storage_fields(fields):
     return subset_list
 
 def create_water_supply_appendix(alts, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, s_supply_formulas):
+    output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
+    os.makedirs(output_root, exist_ok=True)
     """
     Creates the water supply appendix. Creates all the tables and plot and puts them into a doccument.
 
@@ -1836,7 +1846,7 @@ def create_water_supply_appendix(alts, appendix_prefix, dss_path, doc_name, new_
 
     # create plots
     # Check for/create directory to save plots
-    plot_directory = "supply_plots"
+    plot_directory = os.path.join(output_root, "supply_plots")
 
     if os.path.exists(plot_directory):
         # If the directory already exists, clear it out (Wytype names are different for trinity vs sjr and sac, so it
@@ -1914,6 +1924,8 @@ def create_water_supply_appendix(alts, appendix_prefix, dss_path, doc_name, new_
 
 
 def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=False, use_lumped_table_captions=False, storage_elevation_table='', compliance_fields=[], compliance_dict={}, shastabin_data_path=''):
+    output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
+    os.makedirs(output_root, exist_ok=True)
     """
     Create a CalSim, temperature (HEC-5Q), or salinity (DSM2) appendix. Creates the tables and plots and puts them into a doccument.
 
@@ -2205,7 +2217,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         #Iterate through the dfs and create a figure for each month
         #Save month plots to directory
-        month_directory = "month_plots"
+        month_directory = os.path.join(output_root, "month_plots")
 
         if os.path.exists(month_directory):
             # If the directory already exists, clear it out to prevent using any old figures by accident from previous field/alternative.
@@ -2238,7 +2250,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                                         "Sep"]
 
         #Check for/create directory to save stat plots
-        stat_directory = "stat_plots"
+        stat_directory = os.path.join(output_root, "stat_plots")
 
         if os.path.exists(stat_directory):
             # If the directory already exists, clear it out (Wytype names are different for trinity vs sjr and sac, so it
@@ -3753,6 +3765,8 @@ def get_wq_location_data():
 
 
 def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
+    output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
+    os.makedirs(output_root, exist_ok=True)
     """
     Creates the water quality compliance appendix. Creates the plots and puts them in a doccument
     Parameters
@@ -3824,7 +3838,7 @@ def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
     obj_font.name = 'Times New Roman'
 
     # add the set up for the plots. A folder to hold them and line colors and styles
-    s_plot_directory = "./wq_plots"
+    s_plot_directory = os.path.join(output_root, "wq_plots")
     line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g", 'c']
     line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"]
 
@@ -3880,4 +3894,7 @@ def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
     else:
         # Instructions on how to finish formatting numbered captions.
         print("After running this script, \n1. Open Word file and Ctrl+A to select all. Then F9 to update caption numbering.")
+
+
+
 

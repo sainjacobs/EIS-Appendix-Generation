@@ -1,3 +1,4 @@
+import os
 from EISAppendixGen_functions import create_appendix
 
 if __name__ == "__main__":
@@ -71,18 +72,24 @@ if __name__ == "__main__":
     shastabin_data_path = r"..\inputs\shasta_bin_info.xlsx"
 
     # Path to file with WY Typing data
-    wy_flags_path = "..\inputs\wy_flags.xlsx"
+    wy_flags_path = r"..\inputs\wy_flags.xlsx"
+
+    # Output directory for generated Word docs and plot folders.
+    output_folder = r"C:\20251211_BA_Modeling_Appendix\outputs_gitRepo"
 
     # Windows command prompt can't save to OneDrive bc of the space in the file path, save locally instead
     # Pass absolute paths to VBS
     # Name of intermediate word doc - update parent directory
     template = r"..\inputs\template_v2-fonts.docx"
-    doc_name = r"appendix_temp.docx"
+    doc_name = os.path.join(output_folder, "appendix_temp.docx")
     # Name of final word doc
-    new_doc = r"appendix_final_temperature.docx"
+    new_doc = os.path.join(output_folder, "appendix_final_temperature.docx")
 
     ####END OF USER INPUTS #######
+
+    os.makedirs(output_folder, exist_ok=True)
 
     # call the corresponding function for the appendix
     create_appendix('temperature', alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=use_calendar_yr,
                     use_lumped_table_captions=use_lumped_table_captions, compliance_fields=compliance_fields, compliance_dict=compliance_dict, shastabin_data_path=shastabin_data_path)
+
