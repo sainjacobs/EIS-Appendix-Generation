@@ -25,9 +25,42 @@ from docx_caption_formatter import add_caption_byfield, add_caption_water_supply
 import shutil
 import copy
 import subprocess
+import re
 from pydsstools.heclib.dss import HecDss
 
 pd.options.mode.chained_assignment = None
+
+def _safe_filename_piece(value):
+    """
+    Convert a label into a filesystem-safe filename fragment.
+    """
+    return re.sub(r'[^A-Za-z0-9._-]+', '_', str(value)).strip('_') or "output"
+
+def write_dataframe_preview_txt(df, txt_path, title=None, include_index=False):
+    """
+    Write a readable dataframe preview to a text file.
+    """
+    lines = []
+    if title:
+        lines.append(title)
+        lines.append("=" * len(title))
+    lines.append(f"shape: {df.shape[0]} rows x {df.shape[1]} columns")
+    lines.append("")
+    lines.append(df.to_string(index=include_index))
+    lines.append("")
+
+    with open(txt_path, "w", encoding="utf-8") as txt_file:
+        txt_file.write("\n".join(lines))
+
+def write_series_preview_txt(series, txt_path, title=None):
+    """
+    Write a readable series preview to a text file.
+    """
+    df = pd.DataFrame({
+        "Exc Prob": series.values,
+        "Label": [f"{round(value)}% Exceedance" for value in series.values]
+    })
+    write_dataframe_preview_txt(df, txt_path, title=title, include_index=False)
 
 def get_locations(location_crosswalk_path, fields):
     """
@@ -2092,6 +2125,53 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         #Create Exceedance Tables from DSS Reader output
         e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags_path, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr)
 
+        output_root_e_dfs = os.path.join(output_root, "e_dfs")
+        output_root_fig_dfs = os.path.join(output_root, "fig_dfs")
+        os.makedirs(output_root_e_dfs, exist_ok=True)
+        os.makedirs(output_root_fig_dfs, exist_ok=True)
+
+        safe_location_name = _safe_filename_piece(location[0] if isinstance(location, tuple) else location)
+
+        for alt_name, a_df in zip(alts, e_dfs):
+            safe_alt_name = _safe_filename_piece(alt_name)
+            e_df_txt_path = os.path.join(
+                output_root_e_dfs,
+                f"{safe_location_name}_{safe_alt_name}_exceedance_tables.txt"
+            )
+            write_dataframe_preview_txt(
+                a_df,
+                e_df_txt_path,
+                title=f"{location[0] if isinstance(location, tuple) else location} - {alt_name} exceedance tables",
+                include_index=False
+            )
+
+        exc_prob_txt_path = os.path.join(output_root_e_dfs, f"{safe_location_name}_exc_prob.txt")
+        write_series_preview_txt(
+            exc_prob,
+            exc_prob_txt_path,
+            title=f"{location[0] if isinstance(location, tuple) else location} exceedance probabilities"
+        )
+
+        exc_prob_labels = [f"{round(value)}% Exceedance" for value in exc_prob.values]
+        for alt_name, f_df in zip(alts, fig_dfs):
+            safe_alt_name = _safe_filename_piece(alt_name)
+            fig_df_export = f_df.copy(deep=True)
+            if len(fig_df_export) == len(exc_prob_labels):
+                fig_df_export.insert(0, "Exc Prob Label", exc_prob_labels)
+            if len(fig_df_export) == len(exc_prob):
+                fig_df_export.insert(0, "Exc Prob", exc_prob.values)
+
+            fig_df_txt_path = os.path.join(
+                output_root_fig_dfs,
+                f"{safe_location_name}_{safe_alt_name}_figure_data.txt"
+            )
+            write_dataframe_preview_txt(
+                fig_df_export,
+                fig_df_txt_path,
+                title=f"{location[0] if isinstance(location, tuple) else location} - {alt_name} figure data",
+                include_index=False
+            )
+
         ##### Use docx package to create a document with formatted table objects and save to Word .docx file ###########
 
         ## Add a table for each run in each comparison for the current field to the doc
@@ -3894,7 +3974,5 @@ def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
     else:
         # Instructions on how to finish formatting numbered captions.
         print("After running this script, \n1. Open Word file and Ctrl+A to select all. Then F9 to update caption numbering.")
-
-
 
 
