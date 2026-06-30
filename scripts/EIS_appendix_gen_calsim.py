@@ -49,10 +49,8 @@ if __name__ == "__main__":
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
     # Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
+    # WYT flags are read from the WYT_SAC_ and WYT_SJR_ columns in this file.
     dss_path =  os.path.join(base_dir, r"inputs\DSS_contents.xlsx")
-
-    # Path to file with WY Typing data
-    wy_flags_path = os.path.join(base_dir, r"inputs\wy_flags.xlsx")
 
     # Path to storage-elevation table data
     storage_elevation_table = os.path.join(base_dir, r"inputs\storage_elevation_table.xlsx")
@@ -73,7 +71,7 @@ if __name__ == "__main__":
     os.makedirs(output_folder, exist_ok=True)
 
     # call the corresponding function for the appendix
-    create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=use_calendar_yr,
+    create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path=None, template=template, location_cw_path=location_cw_path, use_calendar_yr=use_calendar_yr,
                         use_lumped_table_captions=use_lumped_table_captions, storage_elevation_table=storage_elevation_table)
 
 

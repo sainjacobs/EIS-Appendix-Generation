@@ -30,6 +30,13 @@ from pydsstools.heclib.dss import HecDss
 
 pd.options.mode.chained_assignment = None
 
+CALSIM_WYT_SOURCE_FIELDS = {
+    "40-30-30": ("WYT_SAC_", 5),
+    "TRIN": ("WYT_SAC_", 5),
+    "60-20-20": ("WYT_SJR_", 5),
+}
+CALSIM_REPORT_TYPES = {"flow", "elevation", "diversion"}
+
 def _safe_filename_piece(value):
     """
     Convert a label into a filesystem-safe filename fragment.
@@ -140,6 +147,84 @@ def get_location_wytypes(location_crosswalk_path, fields):
             wytype_list.append(crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) &(crosswalk.Parameter == field[1]), "Water Year Type Index"].values[use_index])
 
     return wytype_list
+
+def get_calsim_wytype_flags(dss_path, runs, use_wytype):
+    """
+    Build annual water-year type flags from the DSSReader output workbook.
+    
+    The location crosswalk still selects the classification to use, but the
+    annual flag values now come directly from WYT_SAC_ or WYT_SJR_ in dss_path.
+    """
+    if use_wytype not in CALSIM_WYT_SOURCE_FIELDS:
+        raise ValueError(
+            f"Water year type {use_wytype!r} is not mapped to a CalSim DSS WYT field. "
+            f"Expected one of {list(CALSIM_WYT_SOURCE_FIELDS)}."
+        )
+
+    source_field, month_defined = CALSIM_WYT_SOURCE_FIELDS[use_wytype]
+    required_columns = ["Date", "Month", "Scenario", "WY", source_field]
+    dss_output = pd.read_excel(dss_path)
+    missing_columns = [column for column in required_columns if column not in dss_output.columns]
+    if missing_columns:
+        raise KeyError(
+            f"{os.path.basename(dss_path)} is missing required WYT column(s): "
+            f"{', '.join(missing_columns)}. Add WYT_SAC_ and WYT_SJR_ to the DSSReader extraction."
+        )
+
+    dss_output = dss_output[required_columns].copy()
+    dss_output["Date"] = pd.to_datetime(dss_output["Date"])
+    dss_output["Month"] = pd.to_numeric(dss_output["Month"], errors="coerce")
+    dss_output["WY"] = pd.to_numeric(dss_output["WY"], errors="coerce")
+    dss_output[source_field] = pd.to_numeric(dss_output[source_field], errors="coerce")
+
+    wy_flags_by_run = []
+    for run in runs:
+        run_df = dss_output.loc[dss_output["Scenario"] == run].copy()
+        if run_df.empty and run == "NAA":
+            run_df = dss_output.loc[dss_output["Scenario"] == "Baseline"].copy()
+        if run_df.empty:
+            raise ValueError(f"No rows found for scenario {run!r} while reading {source_field} from {dss_path}.")
+
+        df_defined = pd.DataFrame(
+            run_df.loc[run_df["Month"] == month_defined].set_index("WY")[source_field]
+        )
+        if df_defined.empty:
+            raise ValueError(
+                f"No month {month_defined} rows found for scenario {run!r} while reading {source_field} from {dss_path}."
+            )
+        first_date = run_df["Date"].min()
+        if first_date == datetime(1921, 10, 31):
+            first_wyt = run_df.loc[run_df["Date"] == first_date, source_field].dropna()
+            if not first_wyt.empty:
+                df_defined.loc[1921, source_field] = first_wyt.iloc[0]
+
+        df_defined.sort_index(inplace=True)
+        df_defined = df_defined[~df_defined.index.duplicated(keep="first")]
+        df_defined.index = df_defined.index.astype(int)
+        df_defined.rename(columns={source_field: use_wytype}, inplace=True)
+        wy_flags_by_run.append(df_defined[[use_wytype]])
+
+    return wy_flags_by_run
+
+def get_wytype_display_index(use_wytype, report_type):
+    if report_type in CALSIM_REPORT_TYPES and use_wytype == "TRIN":
+        return "40-30-30"
+    return use_wytype
+
+def _normalize_wy_flags(wy_flags, use_wytype, num_runs):
+    if isinstance(wy_flags, (str, os.PathLike)):
+        wy_flags_all = pd.read_excel(wy_flags, index_col=0)
+        wy_flags = wy_flags_all[[use_wytype]]
+
+    if isinstance(wy_flags, pd.DataFrame):
+        if use_wytype not in wy_flags.columns:
+            raise KeyError(f"Water year type column {use_wytype!r} was not found in the WYT flags.")
+        return [wy_flags[[use_wytype]].copy() for _ in range(num_runs)]
+
+    if len(wy_flags) != num_runs:
+        raise ValueError(f"Expected {num_runs} WYT flag tables, but got {len(wy_flags)}.")
+
+    return [flag_table[[use_wytype]].copy() for flag_table in wy_flags]
 
 def calculate_supply_fields(s_inputs, s_formulas, s_wy_flags_path):
     """
@@ -577,7 +662,7 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
 
     return t_dfs
 
-def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_calendar_yr = False):
+def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calendar_yr = False):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
 
@@ -585,13 +670,14 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_
     ----------
     t_dfs: list of dataframes
         Dataframe outputs from DSSReader that have been transposed to be formatted for table
-    wy_flags_path: str
-        excel file with the water year types
+    wy_flags: list of pandas DataFrames, pandas DataFrame, or str
+        Water year type flags to use. CalSim appendices pass one dataframe per
+        run from the DSSReader WYT time series. A dataframe or legacy Excel path
+        is still accepted and applied to all runs.
     use_wytype: str
         water year type to use.
-        "40-30-30" to use WYT_SAC_
+        "40-30-30" or "TRIN" to use WYT_SAC_
         "60-20-20" to use WYT_SJR_
-        "TRIN" to use WYT_TRIN_
     report_type: str
         type of report (Calsim, temperature, etc)
     use_calendar_yr: bool
@@ -680,12 +766,9 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_
 
         stats_dfs.append(stats_df)
 
-    #Read in water year typing flags
-    wy_flags_all = pd.read_excel(wy_flags_path, index_col = 0)
-    #Subset to only the wytype that is specified by use_wytype
-    wy_flags = wy_flags_all[[use_wytype]]
+    wy_flags_by_run = _normalize_wy_flags(wy_flags, use_wytype, len(t_dfs))
 
-    if use_wytype == 'TRIN': #Names for Trinity WYType
+    if get_wytype_display_index(use_wytype, report_type) == 'TRIN': #Names for Trinity WYType
         year_types = ["Extremely Wet", "Wet", "Normal", "Dry", "Critically Dry"]
     else: #Names for the Sacramento and SJR WYType
         year_types = ["Wet", "Above Normal", "Below Normal", "Dry", "Critical"]
@@ -698,8 +781,11 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_
     # calculate wet, above normal, dry, etc water years (sum for year type/ count of year type)
     for table_index in range(len(t_dfs)):
 
+        t_dfs[table_index]["WY"] = pd.to_numeric(t_dfs[table_index]["WY"], errors="coerce").astype(int)
         t_dfs[table_index].set_index('WY', inplace = True)
-        t_dfs[table_index]["flag"] = wy_flags[use_wytype]
+        wy_flags_i = wy_flags_by_run[table_index]
+        wy_flags_i.index = pd.to_numeric(wy_flags_i.index, errors="coerce").astype(int)
+        t_dfs[table_index]["flag"] = wy_flags_i[use_wytype]
         if use_calendar_yr:
             df_monthly_ts = pd.melt(t_dfs[table_index].reset_index(drop=False), id_vars='WY',
                     value_vars=t_dfs[table_index].columns[:-1])
@@ -713,7 +799,7 @@ def create_exceedance_tables(t_dfs, wy_flags_path, use_wytype, report_type, use_
             t_dfs_calendar_yr = t_dfs_calendar_yr [['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']]
 
             #Grab the wy that is associated with each calendar year and add as a column. This means that calendar yr 1980 will be assigned the flag for wytype associated with wy1980.
-            t_dfs_calendar_yr['flag'] = wy_flags[use_wytype]
+            t_dfs_calendar_yr['flag'] = wy_flags_i[use_wytype]
 
         exc_probs_i = exc_tables[table_index]["Exc Prob"]
         month_vals = {}
@@ -1953,7 +2039,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     new_doc: str
         Name for the final document
     wy_flags_path: str
-        Path to the water year type flags file
+        Path to the legacy water year type flags file. CalSim reports read WYT
+        flags from WYT_SAC_ and WYT_SJR_ columns in dss_path instead.
     template: str
         Path to the template doc
     location_cw_path: str
@@ -1986,6 +2073,13 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     locations = get_locations(location_cw_path, fields)  # Get location names for each field
     location_params = get_locations_params(location_cw_path, fields)  # Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields)  # Get the wytype to use with each field.
+    if report_type in CALSIM_REPORT_TYPES:
+        wy_flags_by_type = {
+            use_wytype: get_calsim_wytype_flags(dss_path, alts, use_wytype)
+            for use_wytype in set(locations_wytypes)
+        }
+    else:
+        wy_flags_by_type = {}
 
     # compare every run to the baseline run
     comparisons = [["NAA", alt] for alt in alts]
@@ -2096,8 +2190,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         # Get figure value name depending on type of report. This is used in the stat figure captions.
         fig_value = f"Average {location_params[field_index]} ({unit})"
 
+        wy_flags = wy_flags_by_type.get(locations_wytypes[field_index], wy_flags_path)
+
         #Create Exceedance Tables from DSS Reader output
-        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags_path, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr)
+        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr)
 
         output_root_e_dfs = os.path.join(output_root, "e_dfs")
         output_root_fig_dfs = os.path.join(output_root, "fig_dfs")
@@ -2220,9 +2316,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
                 #Add footnote specifying what WY type this field's table uses.
                 footnote2 = doc.add_paragraph()
-                if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:
+                wytype_display_index = get_wytype_display_index(locations_wytypes[field_index], report_type)
+                if wytype_display_index in ['40-30-30', '60-20-20']:
                     run = footnote2.add_run(
-                    f'* Water Year Types defined by the {locations_wytypes[field_index]} Index Water Year Hydrologic Classification (SWRCB D-1641, 1999).')
+                    f'* Water Year Types defined by the {wytype_display_index} Index Water Year Hydrologic Classification (SWRCB D-1641, 1999).')
                 else:
                     run = footnote2.add_run(f"* Water Year Types defined by the Trinity Water Year Hydrologic Classification.")
                 run.font.size = Pt(9)
@@ -2375,7 +2472,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         # Add stats plots as well
         #Set the statistics plot titles
-        if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:  #For Sac or SJR WYType
+        wytype_display_index = get_wytype_display_index(locations_wytypes[field_index], report_type)
+        if wytype_display_index in ['40-30-30', '60-20-20']:  #For Sac or SJR WYType
             stat_titles = ["Long Term", "Wet Year", "Above Normal Year", "Below Normal Year", "Dry Year", 'Critical Year']
         else: #For Trinity WYType
             stat_titles = ["Long Term", "Extremely Wet Year", "Wet Year", "Normal Year", "Dry Year", "Critically Dry Year"]
@@ -2393,9 +2491,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
             # Add footnotes below figure about water year type definition
             caption0 = doc.add_paragraph()
-            if locations_wytypes[field_index] in ['40-30-30', '60-20-20']:
+            if wytype_display_index in ['40-30-30', '60-20-20']:
                 run = caption0.add_run(
-                    f'*As defined by the {locations_wytypes[field_index]} Index Water Year Hydrologic Classification (SWRCB D-1641, 1999).')
+                    f'*As defined by the {wytype_display_index} Index Water Year Hydrologic Classification (SWRCB D-1641, 1999).')
             else:
                 run = caption0.add_run(
                     f"*As defined by the Trinity Water Year Hydrologic Classification.")
