@@ -49,7 +49,8 @@ if __name__ == "__main__":
     # Path to file with DSSReader output
     # for water supply, must be the _TAF output
     # Use output from DSS reader in desired units (CFS or TAF). Use TAF for elevation/storage and CFS for the flow and diversion appendices.
-    # WYT flags are read from the WYT_SAC_ and WYT_SJR_ columns in this file.
+    # WYT flags are read from monthly WYT_SAC_ and WYT_SJR_ columns in this file.
+    # The appendix code uses the May value from each water year as the annual WYT.
     dss_path =  os.path.join(base_dir, r"inputs\DSS_contents.xlsx")
 
     # Path to storage-elevation table data

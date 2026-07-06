@@ -148,12 +148,52 @@ def get_location_wytypes(location_crosswalk_path, fields):
 
     return wytype_list
 
-def get_calsim_wytype_flags(dss_path, runs, use_wytype):
+def _annualize_calsim_wyt_series(run_df, source_field, month_defined, run, dss_path):
+    """
+    Convert a monthly CalSim WYT time series into annual flags.
+
+    WYT_SAC_ and WYT_SJR_ are monthly DSS time series, but the appendix
+    statistics use one water-year type per year. The annual value is defined
+    from the May entry for each water year.
+    """
+    month_name = calendar.month_name[int(month_defined)]
+    month_rows = run_df.loc[run_df["Month"] == month_defined, ["WY", source_field]].copy()
+    month_rows.dropna(subset=["WY", source_field], inplace=True)
+    if month_rows.empty:
+        raise ValueError(
+            f"No non-null {month_name} rows found for scenario {run!r} while reading {source_field} from {dss_path}."
+        )
+
+    conflicting_years = month_rows.groupby("WY")[source_field].nunique()
+    conflicting_years = conflicting_years[conflicting_years > 1]
+    if not conflicting_years.empty:
+        years = ", ".join(str(int(year)) for year in conflicting_years.index)
+        raise ValueError(
+            f"Multiple {month_name} {source_field} values were found for scenario {run!r} in WY(s): {years}."
+        )
+
+    df_defined = month_rows.groupby("WY", sort=True)[source_field].first().to_frame()
+
+    first_date = run_df["Date"].min()
+    if first_date == datetime(1921, 10, 31):
+        first_wyt = run_df.loc[run_df["Date"] == first_date, source_field].dropna()
+        if not first_wyt.empty:
+            df_defined.loc[1921, source_field] = first_wyt.iloc[0]
+
+    df_defined.sort_index(inplace=True)
+    df_defined.index = df_defined.index.astype(int)
+    return df_defined
+
+def get_calsim_wytype_flags(dss_path, runs, use_wytype, debug_output_dir=None):
     """
     Build annual water-year type flags from the DSSReader output workbook.
     
     The location crosswalk still selects the classification to use, but the
-    annual flag values now come directly from WYT_SAC_ or WYT_SJR_ in dss_path.
+    annual flag values now come from the May values in monthly WYT_SAC_ or
+    WYT_SJR_ time series in dss_path.
+
+    If debug_output_dir is provided, write a CSV showing the annualized WYT
+    time series used for each scenario.
     """
     if use_wytype not in CALSIM_WYT_SOURCE_FIELDS:
         raise ValueError(
@@ -168,7 +208,7 @@ def get_calsim_wytype_flags(dss_path, runs, use_wytype):
     if missing_columns:
         raise KeyError(
             f"{os.path.basename(dss_path)} is missing required WYT column(s): "
-            f"{', '.join(missing_columns)}. Add WYT_SAC_ and WYT_SJR_ to the DSSReader extraction."
+            f"{', '.join(missing_columns)}. Add monthly WYT_SAC_ and WYT_SJR_ to the DSSReader extraction."
         )
 
     dss_output = dss_output[required_columns].copy()
@@ -178,31 +218,37 @@ def get_calsim_wytype_flags(dss_path, runs, use_wytype):
     dss_output[source_field] = pd.to_numeric(dss_output[source_field], errors="coerce")
 
     wy_flags_by_run = []
+    debug_exports = []
+    month_name = calendar.month_name[int(month_defined)]
     for run in runs:
+        source_scenario = run
         run_df = dss_output.loc[dss_output["Scenario"] == run].copy()
         if run_df.empty and run == "NAA":
             run_df = dss_output.loc[dss_output["Scenario"] == "Baseline"].copy()
+            source_scenario = "Baseline"
         if run_df.empty:
             raise ValueError(f"No rows found for scenario {run!r} while reading {source_field} from {dss_path}.")
 
-        df_defined = pd.DataFrame(
-            run_df.loc[run_df["Month"] == month_defined].set_index("WY")[source_field]
-        )
-        if df_defined.empty:
-            raise ValueError(
-                f"No month {month_defined} rows found for scenario {run!r} while reading {source_field} from {dss_path}."
-            )
-        first_date = run_df["Date"].min()
-        if first_date == datetime(1921, 10, 31):
-            first_wyt = run_df.loc[run_df["Date"] == first_date, source_field].dropna()
-            if not first_wyt.empty:
-                df_defined.loc[1921, source_field] = first_wyt.iloc[0]
-
-        df_defined.sort_index(inplace=True)
-        df_defined = df_defined[~df_defined.index.duplicated(keep="first")]
-        df_defined.index = df_defined.index.astype(int)
+        df_defined = _annualize_calsim_wyt_series(run_df, source_field, month_defined, run, dss_path)
         df_defined.rename(columns={source_field: use_wytype}, inplace=True)
-        wy_flags_by_run.append(df_defined[[use_wytype]])
+        annual_wyt = df_defined[[use_wytype]].copy()
+        wy_flags_by_run.append(annual_wyt)
+
+        if debug_output_dir:
+            debug_export = annual_wyt.reset_index().rename(columns={"index": "WY"})
+            debug_export.insert(0, "Scenario", run)
+            debug_export.insert(1, "Source Scenario", source_scenario)
+            debug_export.insert(2, "Source Field", source_field)
+            debug_export.insert(3, "Source Month", month_name)
+            debug_exports.append(debug_export)
+
+    if debug_output_dir and debug_exports:
+        os.makedirs(debug_output_dir, exist_ok=True)
+        debug_csv_path = os.path.join(
+            debug_output_dir,
+            f"annual_wyt_{_safe_filename_piece(use_wytype)}.csv"
+        )
+        pd.concat(debug_exports, ignore_index=True).to_csv(debug_csv_path, index=False)
 
     return wy_flags_by_run
 
@@ -2074,8 +2120,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     location_params = get_locations_params(location_cw_path, fields)  # Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields)  # Get the wytype to use with each field.
     if report_type in CALSIM_REPORT_TYPES:
+        wyt_debug_output_dir = os.path.join(output_root, "wyt_debug")
         wy_flags_by_type = {
-            use_wytype: get_calsim_wytype_flags(dss_path, alts, use_wytype)
+            use_wytype: get_calsim_wytype_flags(dss_path, alts, use_wytype, debug_output_dir=wyt_debug_output_dir)
             for use_wytype in set(locations_wytypes)
         }
     else:
