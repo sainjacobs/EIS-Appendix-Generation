@@ -257,6 +257,24 @@ def get_wytype_display_index(use_wytype, report_type):
         return "40-30-30"
     return use_wytype
 
+def _format_whole_number(value, use_commas=False):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+    if not np.isfinite(number):
+        return str(value)
+
+    rounded_number = int(round(number))
+    if use_commas:
+        return f"{rounded_number:,}"
+    return str(rounded_number)
+
+def _format_integer_y_axis(ax):
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
+
 def _normalize_wy_flags(wy_flags, use_wytype, num_runs):
     if isinstance(wy_flags, (str, os.PathLike)):
         wy_flags_all = pd.read_excel(wy_flags, index_col=0)
@@ -883,18 +901,14 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
         #Create list of desired row labels
         row_labels = [f"{round(value)}% Exceedance" for value in exc_probs_i.values]
         row_labels.append('Full Simulation Period Average')
-        wy_type_labels = [f"{year_types[i]} Years ({wytype_percents.loc[i+1].item():.0f}%)" if wytype_percents.loc[i+1].item() == int(wytype_percents.loc[i+1].item())  else
-                          f"{year_types[i]} Years ({wytype_percents.loc[i + 1].item():.1f}%)" for i in range(len(year_types))]
+        wy_type_labels = [f"{year_types[i]} Years ({wytype_percents.loc[i + 1].item():.0f}%)" for i in range(len(year_types))]
         row_labels.extend(wy_type_labels)
 
         #Remove extra columns
         exc_tables[table_index].drop(columns=["Exc Prob"], inplace=True)
 
-        #Round table values
-        if report_type == 'temperature':
-            exc_tables[table_index] = exc_tables[table_index].astype(float)#.round(1)
-        else:
-            exc_tables[table_index] = exc_tables[table_index].astype(float)#.round(0)
+        # Round table values to nearest whole number for display/output tables.
+        exc_tables[table_index] = exc_tables[table_index].astype(float).round(0).astype("Int64")
 
         # Add row labels for report tables in first column
         exc_tables[table_index].insert(0, "Statistic", row_labels)
@@ -1014,12 +1028,12 @@ def change_table_font_size(document, font_size):
 
 def add_commas_to_table(doc):
     """
-    Adds commas to numbers in all tables of a docx document.
+    Formats numeric values in all docx tables as nearest whole numbers with commas.
 
     Parameters
     ----------
     doc: docx document object
-        Document that will have commas added to numeric values in all tables
+        Document that will have numeric values rounded and comma-formatted in all tables
 
     """
 
@@ -1030,23 +1044,20 @@ def add_commas_to_table(doc):
                     for run in paragraph.runs:
                         try:
                             # Check if the text is a number
-                            number = float(run.text)
-                            # Format the number with commas
-                            formatted_number = f"{number:,}"
-                            formatted_number = formatted_number.rsplit(".", 1)[0]
-                            run.text = formatted_number
+                            float(run.text)
+                            run.text = _format_whole_number(run.text, use_commas=True)
                         except ValueError:
                             # If the text is not a number, do nothing
                             pass
 
 def format_decimals(doc):
     """
-    Adds commas to numbers in all tables of a docx document.
+    Formats numeric values in all tables of a docx document as nearest whole numbers.
 
     Parameters
     ----------
     doc: docx document object
-        Document that will have commas added to numeric values in all tables
+        Document that will have numeric values rounded in all tables
 
     """
 
@@ -1057,12 +1068,8 @@ def format_decimals(doc):
                     for run in paragraph.runs:
                         try:
                             # Check if the text is a number
-                            number = float(run.text)
-                            # Format the number with commas
-                            #formatted_number = f"{number:,}"
-                            formatted_number = "{:.1f}".format(number)
-                            #formatted_number = formatted_number.rsplit(".", 1)[0]
-                            run.text = formatted_number
+                            float(run.text)
+                            run.text = _format_whole_number(run.text)
                         except ValueError:
                             # If the text is not a number, do nothing
                             pass
@@ -1119,12 +1126,9 @@ def format_table_basic(doc_table, table_df, doc):
     # add the rest of the data frame
     for row_index in range(table_df.shape[0]):
         for column_index in range(table_df.shape[1]):
-            # Round index to 1 decimal. Round all other values to nearest whole number
+            # Round displayed numeric values to nearest whole number.
 
-            if column_index == 0:
-                doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index],1))
-            else:
-                doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index]))
+            doc_table.cell(row_index + 1, column_index).text = _format_whole_number(table_df.values[row_index, column_index])
 
     # Set table top and bottom borders
     borders = OxmlElement('w:tblBorders')
@@ -1198,13 +1202,8 @@ def format_table(doc_table, table_df, doc, report_type):
             if column_index == 0: #Add the exceedance percentage row labels to the table
                 doc_table.cell(row_index + 1, column_index).text = str(table_df.values[row_index, column_index])
             else:
-                #For all other columns, add the CalSim, temperature, or salinity values in the table. Round values.
-                if report_type == 'temperature':
-                    #For temperature tables, round values to nearest 10th place
-                    doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index],1))
-                else:
-                    #For CalSim or DSM2 tables, round values to the nearest integer
-                    doc_table.cell(row_index + 1, column_index).text = str(round(table_df.values[row_index, column_index]))
+                # For all other columns, add values rounded to the nearest whole number.
+                doc_table.cell(row_index + 1, column_index).text = _format_whole_number(table_df.values[row_index, column_index])
     # Set table top and bottom borders
     borders = OxmlElement('w:tblBorders')
     bottom_border = OxmlElement('w:bottom')
@@ -1254,13 +1253,8 @@ def format_table(doc_table, table_df, doc, report_type):
     for cell in doc_table.columns[0].cells:
         cell.width = Inches(3.4)
 
-    if report_type == "temperature":
-        #format numbers to one decimal pt
-        format_decimals(doc)
-    else:
-        # Add commas to values in table
-        add_commas_to_table(doc)
-        #Commas won't be needed for temperature values
+    # Add commas to values in table after whole-number rounding.
+    add_commas_to_table(doc)
 
     # Align values in center of cells
     for row in doc_table.rows:
@@ -1528,6 +1522,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
         #Format axes
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
+        _format_integer_y_axis(axs)
         axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
 
@@ -1555,7 +1550,8 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     plt.close()
     pd.concat(monthly_export_rows, ignore_index=True).to_csv(
         os.path.join(month_directory, output_basename + ".csv"),
-        index=False
+        index=False,
+        float_format="%.0f"
     )
     return df_month_alts
 
@@ -1647,7 +1643,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     # flip x-axis
     axs.set_xlim(xlims)
     axs.invert_xaxis()
-    axs.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))  # y-axis formatting with commas for thousands
+    _format_integer_y_axis(axs)
 
     if report_type == 'water supply':
         # Save figure to directory
@@ -1661,7 +1657,8 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     plt.close()
     pd.concat(monthly_export_rows, ignore_index=True).to_csv(
         os.path.join(month_directory, output_basename + ".csv"),
-        index=False
+        index=False,
+        float_format="%.0f"
     )
 
 def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles, line_colors, xlims = [0, 100]):
@@ -1708,7 +1705,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     axs.set_xticklabels(percentage_labels)
     axs.set_xlim(xlims)
 
-    axs.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))  # y-axis formatting with commas for thousands
+    _format_integer_y_axis(axs)
     axs.set_ylabel(fig_value)
     axs.set_xlabel("Exceedance Probability")
 
@@ -1767,7 +1764,7 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
             axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
                      linestyle=line_styles[fig_index])
         axs.set_xlim(stat_fig_dfs[fig_index]["month"].iloc[0], stat_fig_dfs[fig_index]["month"].iloc[-1])
-        axs.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))   # y-axis formatting with commas for thousands
+        _format_integer_y_axis(axs)
 
         df_stat_export = stat_fig_dfs[fig_index][["month", stat_column]].copy(deep=True)
         df_stat_export.rename(columns={stat_column: fig_value}, inplace=True)
@@ -1791,7 +1788,8 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     plt.close()
     pd.concat(stat_export_rows, ignore_index=True).to_csv(
         os.path.join(stat_directory, output_basename + ".csv"),
-        index=False
+        index=False,
+        float_format="%.0f"
     )
 
 def order_elevation_storage_fields(fields):
@@ -2277,7 +2275,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 output_root_fig_dfs,
                 f"{safe_location_name}_{safe_alt_name}_figure_data.csv"
             )
-            fig_df_export.to_csv(fig_df_csv_path, index=False)
+            fig_df_export.to_csv(fig_df_csv_path, index=False, float_format="%.0f")
 
         ##### Use docx package to create a document with formatted table objects and save to Word .docx file ###########
 
@@ -3909,6 +3907,7 @@ def create_water_qual_plot(df_percentiles, fig_value, plot_directory, alts, line
                  linestyle=line_styles[fig_index], label=display_name)
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
+        _format_integer_y_axis(axs)
 
         # set the Y axis depending on if its chloride or EC
         if fig_value.split('_')[-1] == 'MI':
