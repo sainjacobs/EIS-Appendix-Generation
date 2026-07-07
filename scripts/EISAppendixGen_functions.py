@@ -43,6 +43,38 @@ def _safe_filename_piece(value):
     """
     return re.sub(r'[^A-Za-z0-9._-]+', '_', str(value)).strip('_') or "output"
 
+def _normalize_alternative_names(alts, use_long_name=False):
+    """
+    Split alternative inputs into model/run IDs and display labels.
+    """
+    alt_names = []
+    alt_display_names = []
+    alt_items = alts.items() if isinstance(alts, dict) else alts
+    dict_values_are_alt_names = isinstance(alts, dict) and "NAA" not in alts and "NAA" in alts.values()
+
+    for alt in alt_items:
+        if isinstance(alts, dict):
+            if dict_values_are_alt_names:
+                long_name, alt_name = alt
+            else:
+                alt_name, long_name = alt
+        elif isinstance(alt, dict):
+            alt_name = alt.get("name") or alt.get("short_name") or alt.get("model_name") or alt.get("run") or alt.get("scenario")
+            long_name = alt.get("long_name") or alt.get("display_name") or alt.get("label") or alt_name
+        elif isinstance(alt, (list, tuple)) and len(alt) >= 2:
+            alt_name, long_name = alt[0], alt[1]
+        else:
+            alt_name = alt
+            long_name = alt
+
+        if alt_name is None:
+            raise ValueError(f"Could not determine alternative model/run name from {alt!r}.")
+
+        alt_names.append(str(alt_name))
+        alt_display_names.append(str(long_name if use_long_name else alt_name))
+
+    return alt_names, alt_display_names, dict(zip(alt_names, alt_display_names))
+
 def get_locations(location_crosswalk_path, fields):
     """
     Gets location names from field codes passed
@@ -2060,7 +2092,7 @@ def create_water_supply_appendix(alts, appendix_prefix, dss_path, doc_name, new_
         \n2. For the Heading 2 Numbering, you may have to adjust it to match the appendix_prefix variable (Ex: 'F.2.2') by right clicking and selecting 'Adjust List Indents'. \nThen modify the numbering to match appendix_prefix under 'Enter formatting for number:'")
 
 
-def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=False, use_lumped_table_captions=False, storage_elevation_table='', compliance_fields=[], compliance_dict={}, shastabin_data_path=''):
+def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=False, use_lumped_table_captions=False, storage_elevation_table='', compliance_fields=[], compliance_dict={}, shastabin_data_path='', use_long_name=False):
     output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
     os.makedirs(output_root, exist_ok=True)
     """
@@ -2070,8 +2102,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     ----------
     report_type: str
         Report type. Could be "flow", "elevation', "diversion" (CalSim appendices), "temperature" (HEC-5Q appendix), "EC", "Cl", "Position" (salinity/DSM2 appendices).
-    alts: list
-        List of alternatives to include in the appendix
+    alts: list or dict
+        Alternatives to include in the appendix. A list of strings uses the same
+        names for DSS lookup and display. A dict can map DSS/model names to
+        longer display names.
     fields: list
         List of fields of to include in the appendix
     appendix_prefix: str
@@ -2101,6 +2135,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         Dictionary for which shasta bin values correspond to which compliance location
     shastabin_data_path: str
         Path to shasta bin values file
+    use_long_name: bool
+        True to use long alternative names in captions, legends, and
+        display exports when alts provides long-name mappings.
 
     Returns
     -------
@@ -2114,20 +2151,21 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             fields)  # Returns a list of tuples with the type of field (elevation or storage). Ex: [("S_TRNTY", 'Storage'), ("S_TRNTY", 'Elevation'), ("S_SHSTA", 'Storage'),  ("S_SHSTA", 'Elevation')]
     elif report_type in ['EC', 'Position', 'Cl']:
         fields = [(field, report_type) for field in fields]
+    alt_names, alt_display_names, alt_display_lookup = _normalize_alternative_names(alts, use_long_name)
     locations = get_locations(location_cw_path, fields)  # Get location names for each field
     location_params = get_locations_params(location_cw_path, fields)  # Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields)  # Get the wytype to use with each field.
     if report_type in CALSIM_REPORT_TYPES:
         wyt_debug_output_dir = os.path.join(output_root, "wyt_debug")
         wy_flags_by_type = {
-            use_wytype: get_calsim_wytype_flags(dss_path, alts, use_wytype, debug_output_dir=wyt_debug_output_dir)
+            use_wytype: get_calsim_wytype_flags(dss_path, alt_names, use_wytype, debug_output_dir=wyt_debug_output_dir)
             for use_wytype in set(locations_wytypes)
         }
     else:
         wy_flags_by_type = {}
 
     # compare every run to the baseline run
-    comparisons = [["NAA", alt] for alt in alts]
+    comparisons = [["NAA", alt] for alt in alt_names]
     # Remove first comparison that is NAA and NAA
     comparisons.pop(0)
 
@@ -2189,19 +2227,19 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         if report_type == 'elevation':
             #For the elevation report
             if location[1] == "Storage":
-                dfs = parse_dssReader_output(dss_path, alts, location[0], report_type)
+                dfs = parse_dssReader_output(dss_path, alt_names, location[0], report_type)
             elif location[1] == 'Elevation':
                 # converted to elevation (ft) based on the storage elevation relationship from res_info.table in the CalSim 3 wresl code.
-                dfs = parse_dssReader_output(dss_path, alts, location[0], report_type, convert_to_elevation= True, orig_unit = 'TAF', storage_elevation_fn = storage_elevation_table)
+                dfs = parse_dssReader_output(dss_path, alt_names, location[0], report_type, convert_to_elevation= True, orig_unit = 'TAF', storage_elevation_fn = storage_elevation_table)
         elif report_type == 'Cl':
-            dfs  = parse_dssReader_output(dss_path, alts, location[0], report_type, convert_to_cl= True, orig_unit = 'uS/cm')
+            dfs  = parse_dssReader_output(dss_path, alt_names, location[0], report_type, convert_to_cl= True, orig_unit = 'uS/cm')
         elif report_type in ["EC", "Position"]:
-            dfs = parse_dssReader_output(dss_path, alts, location[0], report_type)
+            dfs = parse_dssReader_output(dss_path, alt_names, location[0], report_type)
         else:
-            dfs = parse_dssReader_output(dss_path, alts, location, report_type)
+            dfs = parse_dssReader_output(dss_path, alt_names, location, report_type)
 
         if location in compliance_fields:
-            dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alts, location, report_type, shastabin_data = shastabin_data_path, use_calendar_yr=use_calendar_yr)
+            dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alt_names, location, report_type, shastabin_data = shastabin_data_path, use_calendar_yr=use_calendar_yr)
 
         # Get table value name depending on type of report
         if report_type == "flow":
@@ -2247,7 +2285,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         safe_location_name = _safe_filename_piece(location[0] if isinstance(location, tuple) else location)
 
-        for alt_name, a_df in zip(alts, e_dfs):
+        for alt_name, a_df in zip(alt_names, e_dfs):
             safe_alt_name = _safe_filename_piece(alt_name)
             e_df_csv_path = os.path.join(
                 output_root_e_dfs,
@@ -2263,7 +2301,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         exc_prob_df.to_csv(exc_prob_csv_path, index=False)
 
         exc_prob_labels = [f"{round(value)}% Exceedance" for value in exc_prob.values]
-        for alt_name, f_df in zip(alts, fig_dfs):
+        for alt_name, f_df in zip(alt_names, fig_dfs):
             safe_alt_name = _safe_filename_piece(alt_name)
             fig_df_export = f_df.copy(deep=True)
             if len(fig_df_export) == len(exc_prob_labels):
@@ -2281,19 +2319,21 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         ## Add a table for each run in each comparison for the current field to the doc
         for comparison_index, scenario in enumerate(comparisons):
+            base_display_name = alt_display_lookup.get(scenario[0], scenario[0])
+            alt_display_name = alt_display_lookup.get(scenario[1], scenario[1])
 
             #Then third table for each comparison should be first alt minus second alt listed
             comparison_tables = []
             for alt in scenario:
                 #Get exceedance tables for each of the runs in the current comparison
-                comparison_tables.append(e_dfs[alts.index(alt)])
+                comparison_tables.append(e_dfs[alt_names.index(alt)])
             #Add one more table for second alt minus the baseline
             comparison_tables.append(comparison_tables[1].iloc[:, 1:] - comparison_tables[0].iloc[:, 1:])
             #Add the labels column back into the differenced table
             comparison_tables[-1].insert(0, "Statistic", comparison_tables[0]["Statistic"])
 
             #Set up Comparison labels to be used in table titles
-            comparison_table_labels = ["NAA", scenario[1], scenario[1] + " Minus " + "NAA"]
+            comparison_table_labels = [base_display_name, alt_display_name, alt_display_name + " Minus " + base_display_name]
 
             for comp_table_index, full_table in enumerate(comparison_tables):
                 #Subset the statistics table to exclude the lowest and highest probability of exceedance (usually 1% and 99% exceedance)
@@ -2329,12 +2369,12 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             for alt in scenario:
                 #Averaging the number of samples we have for each month
                 # gives you approximation of the full period of record length in years.
-                il_sample_sizes.append(np.mean(il_num_years[alts.index(alt)]).tolist())
+                il_sample_sizes.append(np.mean(il_num_years[alt_names.index(alt)]).tolist())
 
             #Determine the period of record footnote to include.
             #If the NAA and alternative you are comparing to have different sample sizes, use this footnote.
             if len(np.unique(il_sample_sizes))!=1:
-                s_por_footnote  = f"{scenario[0]} Statistics based on approximately {round(il_sample_sizes[0], 1)}-year simulation period. {scenario[1]} statistics based on approximately {round(il_sample_sizes[1], 1)}-year simulation period."
+                s_por_footnote  = f"{base_display_name} Statistics based on approximately {round(il_sample_sizes[0], 1)}-year simulation period. {alt_display_name} statistics based on approximately {round(il_sample_sizes[1], 1)}-year simulation period."
             #If the NAA and alternative you are comparing to have the same sample size and it is a whole number of years, then use this footnote.
             elif il_sample_sizes[0] == int(il_sample_sizes[0]):
                 s_por_footnote = f" Based on the {int(il_sample_sizes[0])}-year simulation period."
@@ -2413,12 +2453,12 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         for month in fig_dfs[0].columns[1:]:
             if location in compliance_fields:
                 #for compliance fields, make exceedance plots with the compliance years marked with a marker.
-                df_month_alts  = create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory, alts, line_styles, line_colors, compliance_dict)
+                df_month_alts  = create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory, alt_display_names, line_styles, line_colors, compliance_dict)
                 monthly_ranked_dfs[month] = df_month_alts
             else:
 
                 #Create monthly plot. For compliance locations, a red marker will be plotted for the
-                create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors)
+                create_month_plot(dfs, fig_value, month, month_directory, alt_display_names, line_styles, line_colors)
 
         ##Simulation Period Statistic Plots###
         stat_fig_dfs = copy.deepcopy(e_dfs)
@@ -2451,7 +2491,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         #Iterate through each stat and plot month abbreivated name by EC in current type of year
         for stat in stats:
-            create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles, line_colors)
+            create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names, line_styles, line_colors)
 
         ##Add saved figures to docx object as images####
 
