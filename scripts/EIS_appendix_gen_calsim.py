@@ -19,13 +19,18 @@ if __name__ == "__main__":
     # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
     # alternatives to include
-    alts = ['NAA', 'Alt2v2_woTUCP']
+    # Map the DSS/model run names to the labels used in the appendix.
+    # The keys remain the short names used for data lookup.
+    alts = {
+        'NAA': 'No Action Alternative',
+        'Alt2v2_woTUCP': 'Alternative 2v2 without TUCP',
+    }
 
-    """
-    Specify whether report is "flow", "elevation", or "diversion"
+    # Specify whether to use long names for alternatives in the appendix.
+    use_long_name = True      # True to use long names for alternatives in the appendix, False to use short names
 
-    Note 1: "elevation" option also includes storages.
-    """
+    # Specify whether report is "flow", "elevation", or "diversion"
+    # Note 1: "elevation" option also includes storages.
     report_type = "flow"
 
     # For NAA vs alternative comparison tables, specify whether you want the table captions lumped or not.
@@ -72,7 +77,10 @@ if __name__ == "__main__":
     os.makedirs(output_folder, exist_ok=True)
 
     # call the corresponding function for the appendix
-    create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path=None, template=template, location_cw_path=location_cw_path, use_calendar_yr=use_calendar_yr,
-                        use_lumped_table_captions=use_lumped_table_captions, storage_elevation_table=storage_elevation_table)
-
+    create_appendix(report_type, alts, fields, appendix_prefix, dss_path,
+                    doc_name, new_doc, wy_flags_path=None, template=template,
+                    location_cw_path=location_cw_path, use_calendar_yr=use_calendar_yr,
+                    use_lumped_table_captions=use_lumped_table_captions,
+                    storage_elevation_table=storage_elevation_table,
+                    use_long_name=use_long_name)
 
