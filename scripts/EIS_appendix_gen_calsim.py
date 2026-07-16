@@ -29,6 +29,60 @@ if __name__ == "__main__":
     # Specify whether to use long names for alternatives in the appendix.
     use_long_name = False      # True to use long names for alternatives in the appendix, False to use short names
 
+    # Formatting for pages containing tables. Measurements ending in "_pt"
+    # are in points; row_height_cm is in centimeters.
+    table_page_format = {
+        "appendix_heading_font_size": 21,
+        "location_heading_font_size": 16,
+        "table_font_size": 8,
+        "caption_font_size": 10,
+        "footnote_font_size": 8,
+        "row_height_cm": 0.42,
+        "cell_space_before_pt": 1,
+        "cell_space_after_pt": 1,
+        "caption_space_before_pt": 4,
+        "caption_space_after_pt": 2,
+        "footnote_space_before_pt": 2,
+        "footnote_space_after_pt": 2,
+    }
+
+    # Formatting for the Word pages containing plots.
+    plot_page_format = {
+        "caption_font_size": 12,
+        "caption_space_before_pt": 1,
+        "caption_space_after_pt": 1,
+        "footnote_font_size": 9,
+        "footnote_space_before_pt": 1,
+        "footnote_space_after_pt": 1,
+        "top_blank_lines": 2,
+    }
+
+    # Formatting inside the generated plots. Matplotlib color names, hex color
+    # codes, and line-style strings are accepted. Supply at least one color and
+    # line style for every alternative included above.
+    plot_format = {
+        "line_colors": ["k", "b", "m", "orange", "y", "r", "purple", "g", "c"],
+        "line_styles": ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"],
+        "line_width": 1.5,
+        "figure_size": (10, 5),
+        "figure_border_width": 3,
+        "figure_border_color": "black",
+        "axis_label_font_size": 10,
+        "tick_label_font_size": 10,
+        "legend_font_size": 10,
+        "legend_columns": 4,
+        "compliance_legend_columns": 3,
+        "legend_location": "center",
+        "legend_y": 1.08,
+        "legend_frame": False,
+        "grid_color": "gray",
+        "grid_style": "--",
+        "grid_line_width": 0.8,
+        "compliance_marker": "o",
+        "compliance_marker_size": 3,
+        "save_dpi": 300,
+    }
+
     # Specify whether report is "flow", "elevation", or "diversion"
     # Note 1: "elevation" option also includes storages.
     report_type = "flow"
@@ -82,5 +136,7 @@ if __name__ == "__main__":
                     location_cw_path=location_cw_path, use_calendar_yr=use_calendar_yr,
                     use_lumped_table_captions=use_lumped_table_captions,
                     storage_elevation_table=storage_elevation_table,
-                    use_long_name=use_long_name)
-
+                    use_long_name=use_long_name,
+                    table_page_format=table_page_format,
+                    plot_page_format=plot_page_format,
+                    plot_format=plot_format)

@@ -37,6 +37,95 @@ CALSIM_WYT_SOURCE_FIELDS = {
 }
 CALSIM_REPORT_TYPES = {"flow", "elevation", "diversion"}
 
+DEFAULT_TABLE_PAGE_FORMAT = {
+    "appendix_heading_font_size": 21,
+    "location_heading_font_size": 16,
+    "table_font_size": 8,
+    "caption_font_size": 10,
+    "footnote_font_size": 8,
+    "row_height_cm": 0.42,
+    "cell_space_before_pt": 1,
+    "cell_space_after_pt": 1,
+    "caption_space_before_pt": 4,
+    "caption_space_after_pt": 2,
+    "footnote_space_before_pt": 2,
+    "footnote_space_after_pt": 2,
+}
+
+DEFAULT_PLOT_PAGE_FORMAT = {
+    "caption_font_size": 12,
+    "caption_space_before_pt": 1,
+    "caption_space_after_pt": 1,
+    "footnote_font_size": 9,
+    "footnote_space_before_pt": 1,
+    "footnote_space_after_pt": 1,
+    "top_blank_lines": 2,
+}
+
+DEFAULT_PLOT_FORMAT = {
+    "line_colors": ["k", "b", "m", "orange", "y", "r", "purple", "g", "c"],
+    "line_styles": ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"],
+    "line_width": 1.5,
+    "figure_size": (10, 5),
+    "figure_border_width": 3,
+    "figure_border_color": "black",
+    "axis_label_font_size": 10,
+    "tick_label_font_size": 10,
+    "legend_font_size": 10,
+    "legend_columns": 4,
+    "compliance_legend_columns": 3,
+    "legend_location": "center",
+    "legend_y": 1.08,
+    "legend_frame": False,
+    "grid_color": "gray",
+    "grid_style": "--",
+    "grid_line_width": 0.8,
+    "compliance_marker": "o",
+    "compliance_marker_size": 3,
+    "save_dpi": 300,
+}
+
+
+def _resolve_format(defaults, overrides):
+    """Return formatting defaults updated with optional user overrides."""
+    resolved = defaults.copy()
+    if overrides:
+        unknown_keys = set(overrides) - set(defaults)
+        if unknown_keys:
+            raise ValueError(f"Unknown formatting option(s): {sorted(unknown_keys)}")
+        resolved.update(overrides)
+    return resolved
+
+
+def _require_positive(format_name, values, keys):
+    """Reject font and spacing values that would be zero or negative."""
+    invalid = [key for key in keys if values[key] <= 0]
+    if invalid:
+        raise ValueError(f"{format_name} values must be greater than zero: {invalid}")
+
+
+def _apply_plot_format(axs, plot_format, legend_columns=None, legend_labels=None):
+    """Apply shared axes, grid, and legend formatting."""
+    axs.xaxis.label.set_size(plot_format["axis_label_font_size"])
+    axs.yaxis.label.set_size(plot_format["axis_label_font_size"])
+    axs.tick_params(axis="both", labelsize=plot_format["tick_label_font_size"])
+    axs.grid(
+        color=plot_format["grid_color"],
+        linestyle=plot_format["grid_style"],
+        linewidth=plot_format["grid_line_width"],
+    )
+    axbox = axs.get_position()
+    legend_kwargs = {
+        "loc": plot_format["legend_location"],
+        "ncol": legend_columns or plot_format["legend_columns"],
+        "bbox_to_anchor": [axbox.x0 + 0.5 * axbox.width, plot_format["legend_y"]],
+        "fontsize": plot_format["legend_font_size"],
+        "frameon": plot_format["legend_frame"],
+    }
+    if legend_labels is not None:
+        legend_kwargs["labels"] = legend_labels
+    axs.legend(**legend_kwargs)
+
 def _safe_filename_piece(value):
     """
     Convert a label into a filesystem-safe filename fragment.
@@ -1058,28 +1147,40 @@ def change_table_font_size(document, font_size):
                         run.font.size = docx.shared.Pt(font_size)
 
 
-def format_compact_table_text(doc_table, font_size=8):
+def format_compact_table_text(doc_table, table_page_format=None):
     """Apply compact, readable text spacing to one appendix table."""
+    table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
     for row in doc_table.rows:
         # Prevent an individual row from being divided between two pages.
         cant_split = OxmlElement('w:cantSplit')
         row._tr.get_or_add_trPr().append(cant_split)
         for cell in row.cells:
             for paragraph in cell.paragraphs:
-                paragraph.paragraph_format.space_before = Pt(1)
-                paragraph.paragraph_format.space_after = Pt(1)
+                paragraph.paragraph_format.space_before = Pt(table_page_format["cell_space_before_pt"])
+                paragraph.paragraph_format.space_after = Pt(table_page_format["cell_space_after_pt"])
                 paragraph.paragraph_format.line_spacing = 1
                 for run in paragraph.runs:
-                    run.font.size = Pt(font_size)
+                    run.font.size = Pt(table_page_format["table_font_size"])
 
 
-def format_compact_note(paragraph, font_size=8):
+def format_compact_note(paragraph, table_page_format=None):
     """Use consistent nonzero spacing for notes beneath a table."""
-    paragraph.paragraph_format.space_before = Pt(2)
-    paragraph.paragraph_format.space_after = Pt(2)
+    table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
+    paragraph.paragraph_format.space_before = Pt(table_page_format["footnote_space_before_pt"])
+    paragraph.paragraph_format.space_after = Pt(table_page_format["footnote_space_after_pt"])
     paragraph.paragraph_format.line_spacing = 1
     for run in paragraph.runs:
-        run.font.size = Pt(font_size)
+        run.font.size = Pt(table_page_format["footnote_font_size"])
+
+
+def format_plot_note(paragraph, plot_page_format=None):
+    """Apply the configured font and spacing to a plot-page note."""
+    plot_page_format = _resolve_format(DEFAULT_PLOT_PAGE_FORMAT, plot_page_format)
+    paragraph.paragraph_format.space_before = Pt(plot_page_format["footnote_space_before_pt"])
+    paragraph.paragraph_format.space_after = Pt(plot_page_format["footnote_space_after_pt"])
+    paragraph.paragraph_format.line_spacing = 1
+    for run in paragraph.runs:
+        run.font.size = Pt(plot_page_format["footnote_font_size"])
 
 
 def add_commas_to_table(doc):
@@ -1159,7 +1260,7 @@ def change_orientation(doc, new_orientation):
 
     return new_section
 
-def format_table_basic(doc_table, table_df, doc):
+def format_table_basic(doc_table, table_df, doc, table_page_format=None):
     """
     Creates tables formatted for appendix report from exceedance tables
 
@@ -1220,12 +1321,12 @@ def format_table_basic(doc_table, table_df, doc):
 
         # Decrease row spacing for table
         row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
-        row.height = Cm(0.42)
+        row.height = Cm(_resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)["row_height_cm"])
 
     # Use compact, consistent text spacing without affecting earlier tables.
-    format_compact_table_text(doc_table)
+    format_compact_table_text(doc_table, table_page_format)
 
-def format_table(doc_table, table_df, doc, report_type):
+def format_table(doc_table, table_df, doc, report_type, table_page_format=None):
     """
     Creates tables formatted for appendix report from exceedance tables
 
@@ -1320,10 +1421,10 @@ def format_table(doc_table, table_df, doc, report_type):
 
         # Decrease row spacing for table
         row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
-        row.height = Cm(0.42)
+        row.height = Cm(_resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)["row_height_cm"])
 
     # Use compact, consistent text spacing without affecting earlier tables.
-    format_compact_table_text(doc_table)
+    format_compact_table_text(doc_table, table_page_format)
 
 
 def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
@@ -1516,7 +1617,10 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     # Change font size to fit on page better
     change_table_font_size(doc, 10)
 
-def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, month, month_directory, alts, line_styles, line_colors, compliance_dict ):
+def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory,
+                                        alts, line_styles, line_colors, compliance_dict,
+                                        plot_format=None):
+    plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
 
@@ -1528,7 +1632,11 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     #Create figures
     df_month_alts = pd.DataFrame(columns = alts)
     monthly_export_rows = []
-    fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    fig, axs = plt.subplots(
+        figsize=plot_format["figure_size"],
+        linewidth=plot_format["figure_border_width"],
+        edgecolor=plot_format["figure_border_color"],
+    )
     for fig_index in range(len(dfs_calendaryr)):
         # Dataset for this alt
         df_alt_data = dfs_calendaryr[fig_index].copy(deep = True)
@@ -1560,11 +1668,15 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
 
         #Plot the exceedance.
         axs.plot(df_month['Exc Prob'], df_month[month], color=line_colors[fig_index],
-                 linestyle=line_styles[fig_index], label=alts[fig_index])
+                 linestyle=line_styles[fig_index], linewidth=plot_format["line_width"], label=alts[fig_index])
 
         #Add markers on the exceedance plot if this location is a compliance location for that year.
         if len(df_month.dropna(subset= ['SHASTABIN_']))>0:
-            axs.plot(df_month.loc[df_month.compliance]['Exc Prob'], df_month.loc[df_month.compliance][month], color = line_colors[fig_index], linestyle = 'none', marker = 'o', markersize = 3,  label = alts[fig_index] + ' - Compliance Location Years')
+            axs.plot(df_month.loc[df_month.compliance]['Exc Prob'], df_month.loc[df_month.compliance][month],
+                     color=line_colors[fig_index], linestyle='none',
+                     marker=plot_format["compliance_marker"],
+                     markersize=plot_format["compliance_marker_size"],
+                     label=alts[fig_index] + ' - Compliance Location Years')
 
         #Add annotations
         # for ind, row in df_month.loc[df_month.compliance].iterrows():
@@ -1582,14 +1694,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
         axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
 
-        # Save this parameter to orient the legend correctly
-        axbox = axs.get_position()
-
-        # Add gridlines
-        plt.grid(color='gray', linestyle='--', linewidth=0.8)
-
-        # Add a legend
-        plt.legend(loc='center', ncol=3, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], fontsize=10, frameon=False)
+        _apply_plot_format(axs, plot_format, plot_format["compliance_legend_columns"])
 
     # Add month number at beginning so that figures can be easily inserted in CY order to document later
     month_number = str(strptime(month, '%b').tm_mon)
@@ -1602,7 +1707,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
         month_number = str(0) + month_number
     output_basename = month_number + "_" + month + "_monthly_exceedance"
     # Save figure to month directory
-    plt.savefig(month_directory + "/" + output_basename + ".png", dpi = 300)
+    plt.savefig(month_directory + "/" + output_basename + ".png", dpi=plot_format["save_dpi"])
     plt.close()
     pd.concat(monthly_export_rows, ignore_index=True).to_csv(
         os.path.join(month_directory, output_basename + ".csv"),
@@ -1611,7 +1716,8 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
     )
     return df_month_alts
 
-def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors, report_type='', xlims = [0, 100]):
+def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors,
+                      report_type='', xlims=[0, 100], plot_format=None):
     """
     Generates and saves individual month plots
 
@@ -1639,6 +1745,8 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     None
 
     """
+    plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
+
     # Check for/create directory to store monthly exceedance plots
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
@@ -1647,7 +1755,11 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     if report_type == 'water supply':
         fig, axs = plt.subplots(figsize=(9, 5.5), linewidth=1, edgecolor="black")
     else:
-        fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+        fig, axs = plt.subplots(
+            figsize=plot_format["figure_size"],
+            linewidth=plot_format["figure_border_width"],
+            edgecolor=plot_format["figure_border_color"],
+        )
 
     monthly_export_rows = []
     for fig_index in range(len(dfs)):
@@ -1673,21 +1785,14 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         percentage_labels = [f"{int(i)}%" for i in percentages]
 
         axs.plot(df_month['Exc Prob'].values, df_month[month].values, color=line_colors[fig_index],
-                 linestyle=line_styles[fig_index], label=alts[fig_index])
+                 linestyle=line_styles[fig_index], linewidth=plot_format["line_width"], label=alts[fig_index])
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
 
         axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
 
-        # Save this parameter to orient the legend correctly
-        axbox = axs.get_position()
-
-        # Add gridlines
-        plt.grid(color='gray', linestyle='--', linewidth=0.8)
-
-        # Add a legend
-        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
+        _apply_plot_format(axs, plot_format)
 
     if report_type != 'water supply':
         # Add month number at beginning so that figures can be easily inserted in CY order to document later
@@ -1704,7 +1809,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     if report_type == 'water supply':
         # Save figure to directory
         output_basename = month
-        plt.savefig(month_directory + "/" + output_basename + ".png")
+        plt.savefig(month_directory + "/" + output_basename + ".png", dpi=plot_format["save_dpi"])
     else:
         # Save figure to month directory
         output_basename = month_number + "_" + month + "_monthly_exceedance"
@@ -1717,7 +1822,8 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         float_format="%.0f"
     )
 
-def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles, line_colors, xlims = [0, 100]):
+def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line_styles,
+                                  line_colors, xlims=[0, 100], plot_format=None):
     """
     Generates and saves individual month plots
 
@@ -1734,12 +1840,17 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     line_colors: list of strings
         Colors for lines on plots
     """
+    plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     #ToDo: check if xlims need to be added. Also, check y-axis formatting
     # Check for/create directory to store monthly exceedance plots
     if not os.path.exists(yr_directory):
         os.makedirs(yr_directory)
 
-    fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    fig, axs = plt.subplots(
+        figsize=plot_format["figure_size"],
+        linewidth=plot_format["figure_border_width"],
+        edgecolor=plot_format["figure_border_color"],
+    )
     for fig_index, altname in enumerate(df_annual.columns):
         # Dataset for this alt
         df_alt_data = df_annual[[altname]].copy(deep=True)
@@ -1755,7 +1866,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
         percentage_labels = [f"{int(i)}%" for i in percentages]
 
         axs.plot(df_alt_data['Exc Prob'].values, df_alt_data[altname].values, color=line_colors[fig_index],
-                 linestyle=line_styles[fig_index], label=alts[fig_index])
+                 linestyle=line_styles[fig_index], linewidth=plot_format["line_width"], label=alts[fig_index])
 
     axs.set_xticks(percentages)
     axs.set_xticklabels(percentage_labels)
@@ -1765,23 +1876,17 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     axs.set_ylabel(fig_value)
     axs.set_xlabel("Exceedance Probability")
 
-    # Save this parameter to orient the legend correctly
-    axbox = axs.get_position()
-
-    # Add gridlines
-    plt.grid(color='gray', linestyle='--', linewidth=0.8)
-
-    # Add a legend
-    plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
+    _apply_plot_format(axs, plot_format)
 
     # flip x-axis
     axs.invert_xaxis()
 
     # Save figure to month directory
-    plt.savefig(os.path.join(yr_directory, "annualavg_exceedance.png"))
+    plt.savefig(os.path.join(yr_directory, "annualavg_exceedance.png"), dpi=plot_format["save_dpi"])
     plt.close()
 
-def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles, line_colors):
+def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles,
+                     line_colors, plot_format=None):
     """
     Generates and saves individual month plots
 
@@ -1805,20 +1910,25 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     ----------
     None
     """
+    plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     if not os.path.exists(stat_directory):
         os.makedirs(stat_directory)
 
-    fig, axs = plt.subplots(figsize=(10, 5), linewidth=3, edgecolor="black")
+    fig, axs = plt.subplots(
+        figsize=plot_format["figure_size"],
+        linewidth=plot_format["figure_border_width"],
+        edgecolor=plot_format["figure_border_color"],
+    )
     stat_export_rows = []
     for fig_index in range(len(stat_fig_dfs)):
         if stat == "Full Simulation Period":
             stat_column = "Full Simulation Period Average"
             axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
-                     linestyle=line_styles[fig_index])
+                     linestyle=line_styles[fig_index], linewidth=plot_format["line_width"])
         else:
             stat_column = stat
             axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
-                     linestyle=line_styles[fig_index])
+                     linestyle=line_styles[fig_index], linewidth=plot_format["line_width"])
         axs.set_xlim(stat_fig_dfs[fig_index]["month"].iloc[0], stat_fig_dfs[fig_index]["month"].iloc[-1])
         _format_integer_y_axis(axs)
 
@@ -1828,19 +1938,12 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         df_stat_export.insert(0, "Alternative", alts[fig_index])
         stat_export_rows.append(df_stat_export[["Alternative", "Statistic", "month", fig_value]])
 
-        # Save this to position legend correctly
-        axbox = axs.get_position()
-
         axs.set_ylabel(fig_value)
-
-        # Add gridlines
-        plt.grid(color='gray', linestyle='--', linewidth=0.8)
-        # Add legend
-        plt.legend(labels=alts, loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
+        _apply_plot_format(axs, plot_format, legend_labels=alts)
 
     # Save stat fig to directory
     output_basename = stat[:5] + "_exceedance"
-    plt.savefig(stat_directory + "/" + output_basename + ".png")
+    plt.savefig(stat_directory + "/" + output_basename + ".png", dpi=plot_format["save_dpi"])
     plt.close()
     pd.concat(stat_export_rows, ignore_index=True).to_csv(
         os.path.join(stat_directory, output_basename + ".csv"),
@@ -2116,9 +2219,47 @@ def create_water_supply_appendix(alts, appendix_prefix, dss_path, doc_name, new_
         \n2. For the Heading 2 Numbering, you may have to adjust it to match the appendix_prefix variable (Ex: 'F.2.2') by right clicking and selecting 'Adjust List Indents'. \nThen modify the numbering to match appendix_prefix under 'Enter formatting for number:'")
 
 
-def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc, wy_flags_path, template, location_cw_path, use_calendar_yr=False, use_lumped_table_captions=False, storage_elevation_table='', compliance_fields=[], compliance_dict={}, shastabin_data_path='', use_long_name=False):
+def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_name, new_doc,
+                    wy_flags_path, template, location_cw_path, use_calendar_yr=False,
+                    use_lumped_table_captions=False, storage_elevation_table='',
+                    compliance_fields=[], compliance_dict={}, shastabin_data_path='',
+                    use_long_name=False, table_page_format=None, plot_page_format=None,
+                    plot_format=None):
     output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
     os.makedirs(output_root, exist_ok=True)
+    table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
+    plot_page_format = _resolve_format(DEFAULT_PLOT_PAGE_FORMAT, plot_page_format)
+    plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
+    _require_positive(
+        "table_page_format",
+        table_page_format,
+        [
+            "appendix_heading_font_size", "location_heading_font_size",
+            "table_font_size", "caption_font_size", "footnote_font_size",
+            "row_height_cm", "cell_space_before_pt", "cell_space_after_pt",
+            "caption_space_before_pt", "caption_space_after_pt",
+            "footnote_space_before_pt", "footnote_space_after_pt",
+        ],
+    )
+    _require_positive(
+        "plot_page_format",
+        plot_page_format,
+        [
+            "caption_font_size", "caption_space_before_pt", "caption_space_after_pt",
+            "footnote_font_size",
+            "footnote_space_before_pt", "footnote_space_after_pt",
+            "top_blank_lines",
+        ],
+    )
+    _require_positive(
+        "plot_format",
+        plot_format,
+        [
+            "line_width", "axis_label_font_size", "tick_label_font_size",
+            "legend_font_size", "legend_columns", "compliance_legend_columns",
+            "grid_line_width", "compliance_marker_size", "save_dpi",
+        ],
+    )
     """
     Create a CalSim, temperature (HEC-5Q), or salinity (DSM2) appendix. Creates the tables and plots and puts them into a doccument.
 
@@ -2162,6 +2303,13 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     use_long_name: bool
         True to use long alternative names in captions, legends, and
         display exports when alts provides long-name mappings.
+    table_page_format: dict
+        Optional overrides for table, table-caption, and table-note formatting.
+    plot_page_format: dict
+        Optional overrides for figure captions, figure notes, and page spacing.
+    plot_format: dict
+        Optional overrides for plot colors, line styles, fonts, legend, grid,
+        figure size, markers, and output resolution.
 
     Returns
     -------
@@ -2222,26 +2370,31 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     # Open the word document template. This template has the heading style 2 formatted with numbering to allow the figures
     # to inherit the heading numbering.
     doc = docx.Document(template)
+    doc.styles['Heading 1'].font.size = Pt(table_page_format["appendix_heading_font_size"])
+    doc.styles['Heading 2'].font.size = Pt(table_page_format["location_heading_font_size"])
     doc.add_heading(f"Attachment{appendix_prefix}", level=1)  # Add Heading 1 (Attachment XXX)
 
     # Add caption style for Figure captions
     obj_styles = doc.styles
     obj_charstyle = obj_styles.add_style('Figure Caption', WD_STYLE_TYPE.PARAGRAPH)
     obj_font = obj_charstyle.font
-    obj_font.size = Pt(12)
+    obj_font.size = Pt(plot_page_format["caption_font_size"])
     obj_font.color.rgb = RGBColor(0, 0, 0)
     obj_font.name = 'Times New Roman'
+    obj_charstyle.paragraph_format.space_before = Pt(plot_page_format["caption_space_before_pt"])
+    obj_charstyle.paragraph_format.space_after = Pt(plot_page_format["caption_space_after_pt"])
+    obj_charstyle.paragraph_format.line_spacing = 1
 
     # Add caption style for Table captions
     obj_styles = doc.styles
     obj_charstyle = obj_styles.add_style('Table Caption', WD_STYLE_TYPE.PARAGRAPH)
     obj_font = obj_charstyle.font
     obj_font.color.rgb = RGBColor(0, 0, 0)
-    obj_font.size = Pt(10)
+    obj_font.size = Pt(table_page_format["caption_font_size"])
     obj_font.name = 'Times New Roman'
     # Keep captions close to their tables while separating adjacent elements.
-    obj_charstyle.paragraph_format.space_before = Pt(4)
-    obj_charstyle.paragraph_format.space_after = Pt(2)
+    obj_charstyle.paragraph_format.space_before = Pt(table_page_format["caption_space_before_pt"])
+    obj_charstyle.paragraph_format.space_after = Pt(table_page_format["caption_space_after_pt"])
     obj_charstyle.paragraph_format.line_spacing = 1
     obj_charstyle.paragraph_format.keep_with_next = True
 
@@ -2396,7 +2549,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 # extra row is so we can add the header row
                 t = doc.add_table(table.shape[0] + 1, table.shape[1])
                 #Format table for report
-                format_table(t, table, doc, report_type)
+                format_table(t, table, doc, report_type, table_page_format)
 
             #Get the number of years of simulation record from the full exceedance probability/values dataframe for each of the naa and the alt you are comparing
             il_sample_sizes =[]
@@ -2455,7 +2608,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 footnote3.paragraph_format.space_before = Pt(1)
 
                 for footnote in (footnote0, footnote1, footnote2, footnote3):
-                    format_compact_note(footnote)
+                    format_compact_note(footnote, table_page_format)
 
         #####Create Monthly EC and full simulation period statistic plots, save locally as images#####
 
@@ -2470,8 +2623,11 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         #     fig_dfs[fig_index]["exc_prob"] = exc_percents
 
         #Can plot up to 8 scenarios, these lines prepare linestyle and color
-        line_colors = ["k", "b", "m", "orange", "y", "r", "purple", "g", 'c']
-        line_styles = ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"]
+        line_colors = plot_format["line_colors"]
+        line_styles = plot_format["line_styles"]
+
+        if len(line_colors) < len(alt_display_names) or len(line_styles) < len(alt_display_names):
+            raise ValueError("plot_format must provide at least one line color and style per alternative.")
 
         # Flip doc to landscape orientation for images
         change_orientation(doc, "landscape")
@@ -2488,12 +2644,19 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         for month in fig_dfs[0].columns[1:]:
             if location in compliance_fields:
                 #for compliance fields, make exceedance plots with the compliance years marked with a marker.
-                df_month_alts  = create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory, alt_display_names, line_styles, line_colors, compliance_dict)
+                df_month_alts = create_mixed_compliance_month_plots(
+                    location, dfs_calendaryr, fig_value, month, month_directory,
+                    alt_display_names, line_styles, line_colors, compliance_dict,
+                    plot_format=plot_format,
+                )
                 monthly_ranked_dfs[month] = df_month_alts
             else:
 
                 #Create monthly plot. For compliance locations, a red marker will be plotted for the
-                create_month_plot(dfs, fig_value, month, month_directory, alt_display_names, line_styles, line_colors)
+                create_month_plot(
+                    dfs, fig_value, month, month_directory, alt_display_names,
+                    line_styles, line_colors, plot_format=plot_format,
+                )
 
         ##Simulation Period Statistic Plots###
         stat_fig_dfs = copy.deepcopy(e_dfs)
@@ -2526,7 +2689,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         #Iterate through each stat and plot month abbreivated name by EC in current type of year
         for stat in stats:
-            create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names, line_styles, line_colors)
+            create_stat_plot(
+                stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names,
+                line_styles, line_colors, plot_format=plot_format,
+            )
 
         ##Add saved figures to docx object as images####
 
@@ -2538,8 +2704,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             # Center figures in middle of page by adding some new lines above
             p = doc.add_paragraph()
             run = p.add_run()
-            run.add_break()
-            run.add_break()
+            for _ in range(plot_page_format["top_blank_lines"]):
+                run.add_break()
 
             #Add figure as a picture
             o_fig = doc.add_picture(month_directory + "/" + file)
@@ -2548,9 +2714,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             f = doc.add_paragraph()
             run = f.add_run(
                 '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
-            run.font.size = Pt(9)
-            f.paragraph_format.space_before = Pt(1)
-            f.paragraph_format.space_after = Pt(1)
+            format_plot_note(f, plot_page_format)
 
             # Generate fig title
             fig_title_value = location_params[field_index]
@@ -2584,7 +2748,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 t = doc.add_table(table.shape[0] + 1, table.shape[1])
 
                 # Format table for report
-                format_table_basic(t, table, doc)
+                format_table_basic(t, table, doc, table_page_format)
                 doc.add_page_break()
 
                 # Flip orientation back to landscape for the rest of the plots
@@ -2602,8 +2766,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             # Center figures in middle of page by adding some new lines above
             p = doc.add_paragraph()
             run = p.add_run()
-            run.add_break()
-            run.add_break()
+            for _ in range(plot_page_format["top_blank_lines"]):
+                run.add_break()
 
             #Add stat figure as image to document
             file = stat_title[:5] + "_Exceedance.png" if stat_title!= 'Long Term' else "Full _exceedance.png"
@@ -2617,9 +2781,6 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             else:
                 run = caption0.add_run(
                     f"*As defined by the Trinity Water Year Hydrologic Classification.")
-            run.font.size = Pt(9)
-            caption0.paragraph_format.space_before = Pt(1)
-            caption0.paragraph_format.space_after = Pt(1)
 
             # Add footnote for what wy type sorting is used.
             caption1 = doc.add_paragraph()
@@ -2627,16 +2788,13 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 run = caption1.add_run('*These results are displayed with water year - year type sorting.')
             else:
                 run = caption1.add_run('*These results are displayed with calendar year - year type sorting.')
-            run.font.size = Pt(9)
-            caption1.paragraph_format.space_before = Pt(1)
-            caption1.paragraph_format.space_after = Pt(1)
 
             #Add footnotes below figure about climate change scenario
             caption2 = doc.add_paragraph()
             run = caption2.add_run(
                 '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
-            run.font.size = Pt(9)
-            caption2.paragraph_format.space_before = Pt(1)
+            for plot_note in (caption0, caption1, caption2):
+                format_plot_note(plot_note, plot_page_format)
 
             # Generate fig title
             fig_title_prefix = "Figure " + appendix_prefix + "-"
