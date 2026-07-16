@@ -1565,7 +1565,7 @@ def create_mixed_compliance_month_plots (location, dfs_calendaryr, fig_value, mo
         plt.grid(color='gray', linestyle='--', linewidth=0.8)
 
         # Add a legend
-        plt.legend(loc='center', ncol=3, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], fontsize = 10)
+        plt.legend(loc='center', ncol=3, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], fontsize=10, frameon=False)
 
     # Add month number at beginning so that figures can be easily inserted in CY order to document later
     month_number = str(strptime(month, '%b').tm_mon)
@@ -1663,7 +1663,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         plt.grid(color='gray', linestyle='--', linewidth=0.8)
 
         # Add a legend
-        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
 
     if report_type != 'water supply':
         # Add month number at beginning so that figures can be easily inserted in CY order to document later
@@ -1748,7 +1748,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     plt.grid(color='gray', linestyle='--', linewidth=0.8)
 
     # Add a legend
-    plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+    plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
 
     # flip x-axis
     axs.invert_xaxis()
@@ -1812,7 +1812,7 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         # Add gridlines
         plt.grid(color='gray', linestyle='--', linewidth=0.8)
         # Add legend
-        plt.legend(labels=alts, loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+        plt.legend(labels=alts, loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
 
     # Save stat fig to directory
     output_basename = stat[:5] + "_exceedance"
@@ -2215,6 +2215,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     obj_font.color.rgb = RGBColor(0, 0, 0)
     obj_font.size = Pt(12)
     obj_font.name = 'Times New Roman'
+    # Separate each table from the caption for the following table. Keep the
+    # existing space after the caption so the title remains close to its table.
+    obj_charstyle.paragraph_format.space_before = Pt(6)
 
     for field_index, location in enumerate(fields):
         if field_index ==0:
@@ -3966,7 +3969,7 @@ def create_water_qual_plot(df_percentiles, fig_value, plot_directory, alts, line
         plt.grid(color='gray', linestyle='--', linewidth=0.8)
 
         # Add a legend
-        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08])
+        plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
 
     # flip x-axis
     axs.invert_xaxis()

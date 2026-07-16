@@ -27,7 +27,7 @@ if __name__ == "__main__":
     }
 
     # Specify whether to use long names for alternatives in the appendix.
-    use_long_name = True      # True to use long names for alternatives in the appendix, False to use short names
+    use_long_name = False      # True to use long names for alternatives in the appendix, False to use short names
 
     # Specify whether report is "flow", "elevation", or "diversion"
     # Note 1: "elevation" option also includes storages.
