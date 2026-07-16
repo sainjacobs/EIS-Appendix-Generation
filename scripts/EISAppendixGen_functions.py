@@ -1058,6 +1058,30 @@ def change_table_font_size(document, font_size):
                         run.font.size = docx.shared.Pt(font_size)
 
 
+def format_compact_table_text(doc_table, font_size=8):
+    """Apply compact, readable text spacing to one appendix table."""
+    for row in doc_table.rows:
+        # Prevent an individual row from being divided between two pages.
+        cant_split = OxmlElement('w:cantSplit')
+        row._tr.get_or_add_trPr().append(cant_split)
+        for cell in row.cells:
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.space_before = Pt(1)
+                paragraph.paragraph_format.space_after = Pt(1)
+                paragraph.paragraph_format.line_spacing = 1
+                for run in paragraph.runs:
+                    run.font.size = Pt(font_size)
+
+
+def format_compact_note(paragraph, font_size=8):
+    """Use consistent nonzero spacing for notes beneath a table."""
+    paragraph.paragraph_format.space_before = Pt(2)
+    paragraph.paragraph_format.space_after = Pt(2)
+    paragraph.paragraph_format.line_spacing = 1
+    for run in paragraph.runs:
+        run.font.size = Pt(font_size)
+
+
 def add_commas_to_table(doc):
     """
     Formats numeric values in all docx tables as nearest whole numbers with commas.
@@ -1188,18 +1212,18 @@ def format_table_basic(doc_table, table_df, doc):
     for cell in doc_table.rows[0].cells:
         set_cell_border(cell, bottom={"sz": 7, "color": "#000a00", "space": 0.5, "val": "single"})
 
-        # Align values in center of cells
-        for row in doc_table.rows:
-            for cell in row.cells:
-                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    # Align values in center of cells
+    for row in doc_table.rows:
+        for cell in row.cells:
+            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
-            # Decrease row spacing for table
-            row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
-            row.height = Cm(0.45)  # 2 cm
+        # Decrease row spacing for table
+        row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+        row.height = Cm(0.42)
 
-        # Change font size to fit on page better
-        change_table_font_size(doc, 8)
+    # Use compact, consistent text spacing without affecting earlier tables.
+    format_compact_table_text(doc_table)
 
 def format_table(doc_table, table_df, doc, report_type):
     """
@@ -1296,10 +1320,10 @@ def format_table(doc_table, table_df, doc, report_type):
 
         # Decrease row spacing for table
         row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
-        row.height = Cm(0.45)  # 2 cm
+        row.height = Cm(0.42)
 
-    # Change font size to fit on page better
-    change_table_font_size(doc, 8)
+    # Use compact, consistent text spacing without affecting earlier tables.
+    format_compact_table_text(doc_table)
 
 
 def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
@@ -2213,11 +2237,13 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     obj_charstyle = obj_styles.add_style('Table Caption', WD_STYLE_TYPE.PARAGRAPH)
     obj_font = obj_charstyle.font
     obj_font.color.rgb = RGBColor(0, 0, 0)
-    obj_font.size = Pt(12)
+    obj_font.size = Pt(10)
     obj_font.name = 'Times New Roman'
-    # Separate each table from the caption for the following table. Keep the
-    # existing space after the caption so the title remains close to its table.
-    obj_charstyle.paragraph_format.space_before = Pt(6)
+    # Keep captions close to their tables while separating adjacent elements.
+    obj_charstyle.paragraph_format.space_before = Pt(4)
+    obj_charstyle.paragraph_format.space_after = Pt(2)
+    obj_charstyle.paragraph_format.line_spacing = 1
+    obj_charstyle.paragraph_format.keep_with_next = True
 
     for field_index, location in enumerate(fields):
         if field_index ==0:
@@ -2322,6 +2348,11 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         ## Add a table for each run in each comparison for the current field to the doc
         for comparison_index, scenario in enumerate(comparisons):
+            # Start each three-table comparison group on its own page. Placing
+            # the break here avoids stacking two complete groups on one page.
+            if comparison_index > 0:
+                doc.add_page_break()
+
             base_display_name = alt_display_lookup.get(scenario[0], scenario[0])
             alt_display_name = alt_display_lookup.get(scenario[1], scenario[1])
 
@@ -2422,8 +2453,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     run = footnote3.add_run('* Water Year Types results are displayed with calendar year – year type sorting.')
                 run.font.size = Pt(9)
                 footnote3.paragraph_format.space_before = Pt(1)
-            if comparison_index!=0:
-                doc.add_page_break() #Add page break after the a,b,c comparison tables.
+
+                for footnote in (footnote0, footnote1, footnote2, footnote3):
+                    format_compact_note(footnote)
 
         #####Create Monthly EC and full simulation period statistic plots, save locally as images#####
 

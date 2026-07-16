@@ -76,8 +76,7 @@ def add_caption_byfield(document, tab_or_figure, prefix, caption, custom_style='
     r.append(fldChar)
 
     # Add caption text
-    run = paragraph.add_run(f' {caption}')
-    run.font.size = Pt(12)
+    paragraph.add_run(f' {caption}')
     return
 
 
