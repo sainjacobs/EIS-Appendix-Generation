@@ -132,6 +132,131 @@ def _safe_filename_piece(value):
     """
     return re.sub(r'[^A-Za-z0-9._-]+', '_', str(value)).strip('_') or "output"
 
+def _apply_ylim(axs, ylim):
+    """Apply an optional (ymin, ymax) override to an axes, leaving either side on auto-scale if None."""
+    if ylim is None:
+        return
+    ymin, ymax = ylim
+    if ymin is not None or ymax is not None:
+        axs.set_ylim(bottom=ymin, top=ymax)
+
+# The 12 valid "period" values for exceedance-plot override rows.
+VALID_EXCEEDANCE_PERIODS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+def _normalize_month_period(month):
+    """Normalize a month name/abbreviation to the 3-letter title-case form used as the exceedance period key (Ex: "january" -> "Jan")."""
+    return str(month).strip()[:3].title()
+
+def _normalize_stat_label(stat_label):
+    """
+    Strip the trailing "(NN%)" and "Years"/"Average" wording from a full-simulation-period
+    Statistic label to get a stable monthly-plot period key.
+    Ex: "Wet Years (28%)" -> "Wet"; "Full Simulation Period Average" -> "Full Simulation Period".
+    """
+    label = re.sub(r"\s*\(\s*[\d.]+%\s*\)\s*$", "", str(stat_label)).strip()
+    label = re.sub(r"\s+Years?$", "", label).strip()
+    label = re.sub(r"\s+Average$", "", label).strip()
+    return label.title()
+
+def load_ylim_overrides(ylim_csv_path):
+    """
+    Read a CSV of per-station, per-plot y-axis min/max overrides for the monthly
+    exceedance probability plots (12 per station, one per month) and the
+    full-simulation-period monthly statistic plots (6 per station: Full
+    Simulation Period plus one per water-year type).
+
+    The CSV is in "long" format: one row per station/plot/period combination
+    that needs an override. Rows for plots that should stay auto-scaled can
+    simply be omitted.
+
+    Expected columns
+    -----------------
+    station: str
+        Field code (Ex: "C_LWSTN"). For "elevation" report fields that can be
+        both a storage and elevation location (Ex: S_TRNTY), use
+        "<station>_Storage" / "<station>_Elevation" so the two plot types can
+        have different limits.
+    plot_type: str
+        "exceedance" (monthly exceedance probability plots) or "monthly"
+        (full-simulation-period statistic plots).
+    period: str
+        For plot_type "exceedance": a month name/abbreviation (Jan..Dec).
+        For plot_type "monthly": the water-year-type category, with the
+        percentage removed (Ex: "Full Simulation Period", "Wet",
+        "Above Normal", "Below Normal", "Dry", "Critical" for
+        Sacramento/San Joaquin index stations, or "Extremely Wet", "Wet",
+        "Normal", "Dry", "Critically Dry" for Trinity index stations).
+    ymin, ymax: float, optional
+        Either can be left blank to leave that side of the axis on auto-scale.
+        A row with both blank is ignored.
+
+    Parameters
+    ----------
+    ylim_csv_path: str or None
+        Path to the ylim overrides CSV. If None or empty, no overrides are applied.
+
+    Returns
+    -------
+    dict
+        Maps station key -> plot_type ("exceedance"/"monthly") -> period key -> (ymin, ymax).
+    """
+    if not ylim_csv_path:
+        return {}
+
+    ylim_df = pd.read_csv(ylim_csv_path)
+    required_cols = {"station", "plot_type", "period", "ymin", "ymax"}
+    missing_cols = required_cols - set(ylim_df.columns)
+    if missing_cols:
+        raise ValueError(f"ylim CSV {ylim_csv_path} is missing required column(s): {sorted(missing_cols)}")
+
+    def _cell_to_float(value):
+        return None if pd.isna(value) else float(value)
+
+    overrides = {}
+    for _, row in ylim_df.iterrows():
+        station = str(row["station"]).strip()
+        plot_type = str(row["plot_type"]).strip().lower()
+        period = str(row["period"]).strip()
+        if not station or station.lower() == "nan" or not period or period.lower() == "nan":
+            continue
+        if plot_type not in ("exceedance", "monthly"):
+            raise ValueError(
+                f"ylim CSV {ylim_csv_path} has plot_type {row['plot_type']!r} for station {station!r}; "
+                "expected 'exceedance' or 'monthly'."
+            )
+
+        ymin = _cell_to_float(row["ymin"])
+        ymax = _cell_to_float(row["ymax"])
+        if ymin is None and ymax is None:
+            continue
+
+        period_key = _normalize_month_period(period) if plot_type == "exceedance" else period.title()
+        overrides.setdefault(station, {}).setdefault(plot_type, {})[period_key] = (ymin, ymax)
+
+    return overrides
+
+def _ylim_key_for_field(field):
+    """Build the ylim-overrides lookup key for a field, matching the "<station>_<Parameter>" convention used for elevation fields."""
+    if isinstance(field, tuple):
+        return f"{field[0]}_{field[1]}"
+    return field
+
+def _get_ylim(overrides, station_key, plot_type, period_key):
+    """Look up the (ymin, ymax) override for a station/plot_type/period combination, or None if not set."""
+    return overrides.get(station_key, {}).get(plot_type, {}).get(period_key)
+
+def _warn_unmatched_ylim_periods(overrides, station_key, plot_type, valid_periods, ylim_csv_path):
+    """Print a warning for any override period that doesn't match a period actually produced for this station, to help catch CSV typos."""
+    configured_periods = set(overrides.get(station_key, {}).get(plot_type, {}))
+    unmatched = configured_periods - set(valid_periods)
+    if unmatched:
+        print(
+            f"Warning: {ylim_csv_path} has {plot_type} period(s) {sorted(unmatched)} for station "
+            f"{station_key!r} that don't match this station's periods ({sorted(valid_periods)}). "
+            "Check for typos; these overrides will be ignored."
+        )
+
+
 def _normalize_alternative_names(alts, use_long_name=False):
     """
     Split alternative inputs into model/run IDs and display labels.
@@ -1619,7 +1744,7 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
 
 def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory,
                                         alts, line_styles, line_colors, compliance_dict,
-                                        plot_format=None):
+                                        plot_format=None, ylim=None):
     plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
@@ -1699,6 +1824,8 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
     # Add month number at beginning so that figures can be easily inserted in CY order to document later
     month_number = str(strptime(month, '%b').tm_mon)
 
+    _apply_ylim(axs, ylim)
+
     # flip x-axis
     axs.invert_xaxis()
 
@@ -1717,7 +1844,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
     return df_month_alts
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors,
-                      report_type='', xlims=[0, 100], plot_format=None):
+                      report_type='', xlims=[0, 100], plot_format=None, ylim=None):
     """
     Generates and saves individual month plots
 
@@ -1739,6 +1866,9 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         Colors for lines on plots
     report_type: str
         Type of report, only really matters if its water supply
+    ylim: tuple of (float or None, float or None), optional
+        (ymin, ymax) override for the y-axis. Either side can be None to leave
+        that side on auto-scale.
 
     Returns
     --------
@@ -1805,6 +1935,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     axs.set_xlim(xlims)
     axs.invert_xaxis()
     _format_integer_y_axis(axs)
+    _apply_ylim(axs, ylim)
 
     if report_type == 'water supply':
         # Save figure to directory
@@ -1886,7 +2017,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     plt.close()
 
 def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles,
-                     line_colors, plot_format=None):
+                     line_colors, plot_format=None, ylim=None):
     """
     Generates and saves individual month plots
 
@@ -1906,6 +2037,9 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         Styles for lines on plots
     line_colors: list of strings
         Colors for lines on plots
+    ylim: tuple of (float or None, float or None), optional
+        (ymin, ymax) override for the y-axis. Either side can be None to leave
+        that side on auto-scale.
     Returns
     ----------
     None
@@ -1940,6 +2074,8 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
 
         axs.set_ylabel(fig_value)
         _apply_plot_format(axs, plot_format, legend_labels=alts)
+
+    _apply_ylim(axs, ylim)
 
     # Save stat fig to directory
     output_basename = stat[:5] + "_exceedance"
@@ -2224,12 +2360,13 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     use_lumped_table_captions=False, storage_elevation_table='',
                     compliance_fields=[], compliance_dict={}, shastabin_data_path='',
                     use_long_name=False, table_page_format=None, plot_page_format=None,
-                    plot_format=None):
+                    plot_format=None, ylim_csv_path=None):
     output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
     os.makedirs(output_root, exist_ok=True)
     table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
     plot_page_format = _resolve_format(DEFAULT_PLOT_PAGE_FORMAT, plot_page_format)
     plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
+    ylim_overrides = load_ylim_overrides(ylim_csv_path)
     _require_positive(
         "table_page_format",
         table_page_format,
@@ -2310,6 +2447,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     plot_format: dict
         Optional overrides for plot colors, line styles, fonts, legend, grid,
         figure size, markers, and output resolution.
+    ylim_csv_path: str, optional
+        Path to a CSV with per-station y-axis overrides for the monthly exceedance
+        probability plots and the full-simulation-period monthly statistic plots.
+        See load_ylim_overrides for the expected columns.
 
     Returns
     -------
@@ -2404,6 +2545,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         #Add location heading in default word heading 2 style. This allows the figure numbering to inherit the heading 2 numbering.
         doc.add_heading(locations[field_index], level=2)
+
+        # Lookup key for this station's y-axis overrides (looked up per-month/per-stat below).
+        ylim_key = _ylim_key_for_field(location)
+        _warn_unmatched_ylim_periods(ylim_overrides, ylim_key, "exceedance", VALID_EXCEEDANCE_PERIODS, ylim_csv_path)
 
         ##### Read DSSReader output ########
         if report_type == 'elevation':
@@ -2642,12 +2787,13 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
         monthly_ranked_dfs = {}
         for month in fig_dfs[0].columns[1:]:
+            month_ylim = _get_ylim(ylim_overrides, ylim_key, "exceedance", _normalize_month_period(month))
             if location in compliance_fields:
                 #for compliance fields, make exceedance plots with the compliance years marked with a marker.
                 df_month_alts = create_mixed_compliance_month_plots(
                     location, dfs_calendaryr, fig_value, month, month_directory,
                     alt_display_names, line_styles, line_colors, compliance_dict,
-                    plot_format=plot_format,
+                    plot_format=plot_format, ylim=month_ylim,
                 )
                 monthly_ranked_dfs[month] = df_month_alts
             else:
@@ -2655,7 +2801,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 #Create monthly plot. For compliance locations, a red marker will be plotted for the
                 create_month_plot(
                     dfs, fig_value, month, month_directory, alt_display_names,
-                    line_styles, line_colors, plot_format=plot_format,
+                    line_styles, line_colors, plot_format=plot_format, ylim=month_ylim,
                 )
 
         ##Simulation Period Statistic Plots###
@@ -2686,12 +2832,17 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         # stats = ["Full Simulation Period", "Wet Water Years (28%)", "Above Normal Water Years (14%)",
         #          "Below Normal Water Years (18%)",
         #          "Dry Water Years (24%)", 'Critical Water Years (16%)']
+        _warn_unmatched_ylim_periods(
+            ylim_overrides, ylim_key, "monthly",
+            [_normalize_stat_label(stat) for stat in stats], ylim_csv_path,
+        )
 
         #Iterate through each stat and plot month abbreivated name by EC in current type of year
         for stat in stats:
+            stat_ylim = _get_ylim(ylim_overrides, ylim_key, "monthly", _normalize_stat_label(stat))
             create_stat_plot(
                 stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names,
-                line_styles, line_colors, plot_format=plot_format,
+                line_styles, line_colors, plot_format=plot_format, ylim=stat_ylim,
             )
 
         ##Add saved figures to docx object as images####
@@ -2707,6 +2858,15 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             for _ in range(plot_page_format["top_blank_lines"]):
                 run.add_break()
 
+            # Generate fig title
+            fig_title_value = location_params[field_index]
+            fig_title_prefix = "Figure " + appendix_prefix + "-"
+            fig_title = locations[field_index] + ", " + datetime.strptime(file.split("_", 2)[1],
+                                                                                   '%b').strftime(
+                '%B') + " " + fig_title_value
+            # Add title above figure
+            add_caption_byfield(doc, "Figure", fig_title_prefix, fig_title, custom_style = "Figure Caption")
+
             #Add figure as a picture
             o_fig = doc.add_picture(month_directory + "/" + file)
 
@@ -2715,15 +2875,6 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             run = f.add_run(
                 '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
             format_plot_note(f, plot_page_format)
-
-            # Generate fig title
-            fig_title_value = location_params[field_index]
-            fig_title_prefix = "Figure " + appendix_prefix + "-"
-            fig_title = locations[field_index] + ", " + datetime.strptime(file.split("_", 2)[1],
-                                                                                   '%b').strftime(
-                '%B') + " " + fig_title_value
-            # Add title below figure
-            add_caption_byfield(doc, "Figure", fig_title_prefix, fig_title, custom_style = "Figure Caption")
 
             #Add page break after each figure
             doc.add_page_break()
@@ -2769,6 +2920,12 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             for _ in range(plot_page_format["top_blank_lines"]):
                 run.add_break()
 
+            # Generate fig title
+            fig_title_prefix = "Figure " + appendix_prefix + "-"
+            fig_title = locations[field_index] + ", " +  stat_title + " " + fig_value
+            #Add fig title as the figure caption above figure.
+            add_caption_byfield(doc, "Figure", fig_title_prefix, fig_title, custom_style="Figure Caption")
+
             #Add stat figure as image to document
             file = stat_title[:5] + "_Exceedance.png" if stat_title!= 'Long Term' else "Full _exceedance.png"
             doc.add_picture(stat_directory + "/" + file)
@@ -2795,12 +2952,6 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
             for plot_note in (caption0, caption1, caption2):
                 format_plot_note(plot_note, plot_page_format)
-
-            # Generate fig title
-            fig_title_prefix = "Figure " + appendix_prefix + "-"
-            fig_title = locations[field_index] + ", " +  stat_title + " " + fig_value
-            #Add fig title as the figure caption below figure.
-            add_caption_byfield(doc, "Figure", fig_title_prefix, fig_title, custom_style="Figure Caption")
 
             #No need for the page break if it's the final plot of the document
             if stat_plot_index == (len(stat_titles) - 1) and field_index == (len(fields) - 1):
