@@ -115,13 +115,9 @@ if __name__ == "__main__":
     # Path to storage-elevation table data
     storage_elevation_table = os.path.join(base_dir, r"inputs\storage_elevation_table.xlsx")
 
-    # Path to CSV with per-station, per-month y-axis min/max overrides for the monthly
-    # exceedance probability plots (12 per station) and per-station, per-water-year-type
-    # overrides for the monthly statistic plots (6 per station). One row per
-    # station/plot_type/period combination that needs an override; rows for plots that
-    # should stay auto-scaled can simply be omitted. See load_ylim_overrides() in
-    # EISAppendixGen_functions.py for the exact column definitions. Set to None to let
-    # all plots auto-scale their y-axis.
+    # Path to CSV with per-station y-axis min/max overrides for the monthly exceedance
+    # probability plots and the full-simulation-period monthly plots. Set to None to
+    # let all plots auto-scale their y-axis.
     ylim_csv_path = os.path.join(base_dir, r"inputs\plot_ylim_overrides.csv")
 
     # Output directory for generated Word docs and plot folders.

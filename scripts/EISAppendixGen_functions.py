@@ -140,34 +140,12 @@ def _apply_ylim(axs, ylim):
     if ymin is not None or ymax is not None:
         axs.set_ylim(bottom=ymin, top=ymax)
 
-# The 12 valid "period" values for exceedance-plot override rows.
-VALID_EXCEEDANCE_PERIODS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-def _normalize_month_period(month):
-    """Normalize a month name/abbreviation to the 3-letter title-case form used as the exceedance period key (Ex: "january" -> "Jan")."""
-    return str(month).strip()[:3].title()
-
-def _normalize_stat_label(stat_label):
-    """
-    Strip the trailing "(NN%)" and "Years"/"Average" wording from a full-simulation-period
-    Statistic label to get a stable monthly-plot period key.
-    Ex: "Wet Years (28%)" -> "Wet"; "Full Simulation Period Average" -> "Full Simulation Period".
-    """
-    label = re.sub(r"\s*\(\s*[\d.]+%\s*\)\s*$", "", str(stat_label)).strip()
-    label = re.sub(r"\s+Years?$", "", label).strip()
-    label = re.sub(r"\s+Average$", "", label).strip()
-    return label.title()
-
 def load_ylim_overrides(ylim_csv_path):
     """
-    Read a CSV of per-station, per-plot y-axis min/max overrides for the monthly
-    exceedance probability plots (12 per station, one per month) and the
-    full-simulation-period monthly statistic plots (6 per station: Full
-    Simulation Period plus one per water-year type).
-
-    The CSV is in "long" format: one row per station/plot/period combination
-    that needs an override. Rows for plots that should stay auto-scaled can
-    simply be omitted.
+    Read a CSV of per-station y-axis min/max overrides: one shared ylim for all
+    12 monthly exceedance probability plots, and one shared ylim for all 6
+    full-simulation-period monthly statistic plots (Full Simulation Period
+    plus one per water-year type).
 
     Expected columns
     -----------------
@@ -179,13 +157,6 @@ def load_ylim_overrides(ylim_csv_path):
     plot_type: str
         "exceedance" (monthly exceedance probability plots) or "monthly"
         (full-simulation-period statistic plots).
-    period: str
-        For plot_type "exceedance": a month name/abbreviation (Jan..Dec).
-        For plot_type "monthly": the water-year-type category, with the
-        percentage removed (Ex: "Full Simulation Period", "Wet",
-        "Above Normal", "Below Normal", "Dry", "Critical" for
-        Sacramento/San Joaquin index stations, or "Extremely Wet", "Wet",
-        "Normal", "Dry", "Critically Dry" for Trinity index stations).
     ymin, ymax: float, optional
         Either can be left blank to leave that side of the axis on auto-scale.
         A row with both blank is ignored.
@@ -198,13 +169,13 @@ def load_ylim_overrides(ylim_csv_path):
     Returns
     -------
     dict
-        Maps station key -> plot_type ("exceedance"/"monthly") -> period key -> (ymin, ymax).
+        Maps station key -> plot_type ("exceedance"/"monthly") -> (ymin, ymax).
     """
     if not ylim_csv_path:
         return {}
 
     ylim_df = pd.read_csv(ylim_csv_path)
-    required_cols = {"station", "plot_type", "period", "ymin", "ymax"}
+    required_cols = {"station", "plot_type", "ymin", "ymax"}
     missing_cols = required_cols - set(ylim_df.columns)
     if missing_cols:
         raise ValueError(f"ylim CSV {ylim_csv_path} is missing required column(s): {sorted(missing_cols)}")
@@ -216,8 +187,7 @@ def load_ylim_overrides(ylim_csv_path):
     for _, row in ylim_df.iterrows():
         station = str(row["station"]).strip()
         plot_type = str(row["plot_type"]).strip().lower()
-        period = str(row["period"]).strip()
-        if not station or station.lower() == "nan" or not period or period.lower() == "nan":
+        if not station or station.lower() == "nan":
             continue
         if plot_type not in ("exceedance", "monthly"):
             raise ValueError(
@@ -230,8 +200,7 @@ def load_ylim_overrides(ylim_csv_path):
         if ymin is None and ymax is None:
             continue
 
-        period_key = _normalize_month_period(period) if plot_type == "exceedance" else period.title()
-        overrides.setdefault(station, {}).setdefault(plot_type, {})[period_key] = (ymin, ymax)
+        overrides.setdefault(station, {})[plot_type] = (ymin, ymax)
 
     return overrides
 
@@ -241,20 +210,36 @@ def _ylim_key_for_field(field):
         return f"{field[0]}_{field[1]}"
     return field
 
-def _get_ylim(overrides, station_key, plot_type, period_key):
-    """Look up the (ymin, ymax) override for a station/plot_type/period combination, or None if not set."""
-    return overrides.get(station_key, {}).get(plot_type, {}).get(period_key)
+def _get_ylim(overrides, station_key, plot_type):
+    """Look up the (ymin, ymax) override for a station/plot_type combination, or None if not set."""
+    return overrides.get(station_key, {}).get(plot_type)
 
-def _warn_unmatched_ylim_periods(overrides, station_key, plot_type, valid_periods, ylim_csv_path):
-    """Print a warning for any override period that doesn't match a period actually produced for this station, to help catch CSV typos."""
-    configured_periods = set(overrides.get(station_key, {}).get(plot_type, {}))
-    unmatched = configured_periods - set(valid_periods)
-    if unmatched:
-        print(
-            f"Warning: {ylim_csv_path} has {plot_type} period(s) {sorted(unmatched)} for station "
-            f"{station_key!r} that don't match this station's periods ({sorted(valid_periods)}). "
-            "Check for typos; these overrides will be ignored."
-        )
+def _compute_group_data_range(dfs_list, columns):
+    """Return the (min, max) of the given columns across all alternative dataframes, or (None, None) if no finite values are found."""
+    present_columns = [col for col in columns if all(col in df.columns for df in dfs_list)]
+    if not dfs_list or not present_columns:
+        return None, None
+    values = pd.concat([df[present_columns] for df in dfs_list], axis=0).to_numpy(dtype=float).ravel()
+    finite_values = values[np.isfinite(values)]
+    if finite_values.size == 0:
+        return None, None
+    return float(finite_values.min()), float(finite_values.max())
+
+def _resolve_group_ylim(override, data_range):
+    """
+    Merge a per-station ylim override with the shared data-driven range for all plots in its
+    group (all 12 exceedance plots, or all 6 monthly/WYT plots): explicit override values win,
+    and any side left unset (including when there's no override row at all) falls back to the
+    group's actual data min/max, so every station gets consistent axis limits across its group
+    by default.
+    """
+    data_min, data_max = data_range
+    override_min, override_max = override if override else (None, None)
+    ymin = override_min if override_min is not None else data_min
+    ymax = override_max if override_max is not None else data_max
+    if ymin is None and ymax is None:
+        return None
+    return (ymin, ymax)
 
 
 def _normalize_alternative_names(alts, use_long_name=False):
@@ -520,6 +505,33 @@ def _format_whole_number(value, use_commas=False):
 def _format_integer_y_axis(ax):
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
+
+def _add_endpoint_yticks(ax):
+    """
+    Ensure the y-axis has a labeled tick at its exact min and max value (accessibility:
+    readers can identify the plotted range without interpolating between gridlines),
+    dropping any nearby auto-generated tick whose label would visually overlap it.
+    """
+    ymin, ymax = ax.get_ylim()
+    if ymin >= ymax:
+        return
+
+    # Estimate the minimum data-unit gap needed between tick labels to avoid overlap,
+    # based on the axes' actual pixel height and the tick label font size.
+    bbox = ax.get_position()
+    axes_height_points = bbox.height * ax.figure.get_size_inches()[1] * 72
+    tick_labels = ax.yaxis.get_ticklabels()
+    try:
+        font_size = tick_labels[0].get_fontsize() if tick_labels else float(plt.rcParams["ytick.labelsize"])
+    except (TypeError, ValueError):
+        font_size = 10
+    min_gap_data = (ymax - ymin) * (1.5 * font_size / axes_height_points) if axes_height_points else 0
+
+    kept_ticks = [
+        t for t in ax.get_yticks()
+        if ymin <= t <= ymax and abs(t - ymin) > min_gap_data and abs(t - ymax) > min_gap_data
+    ]
+    ax.set_yticks(sorted(kept_ticks + [ymin, ymax]))
 
 def _normalize_wy_flags(wy_flags, use_wytype, num_runs):
     if isinstance(wy_flags, (str, os.PathLike)):
@@ -1825,6 +1837,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
     month_number = str(strptime(month, '%b').tm_mon)
 
     _apply_ylim(axs, ylim)
+    _add_endpoint_yticks(axs)
 
     # flip x-axis
     axs.invert_xaxis()
@@ -1936,6 +1949,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     axs.invert_xaxis()
     _format_integer_y_axis(axs)
     _apply_ylim(axs, ylim)
+    _add_endpoint_yticks(axs)
 
     if report_type == 'water supply':
         # Save figure to directory
@@ -2004,6 +2018,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     axs.set_xlim(xlims)
 
     _format_integer_y_axis(axs)
+    _add_endpoint_yticks(axs)
     axs.set_ylabel(fig_value)
     axs.set_xlabel("Exceedance Probability")
 
@@ -2076,6 +2091,7 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         _apply_plot_format(axs, plot_format, legend_labels=alts)
 
     _apply_ylim(axs, ylim)
+    _add_endpoint_yticks(axs)
 
     # Save stat fig to directory
     output_basename = stat[:5] + "_exceedance"
@@ -2546,9 +2562,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         #Add location heading in default word heading 2 style. This allows the figure numbering to inherit the heading 2 numbering.
         doc.add_heading(locations[field_index], level=2)
 
-        # Lookup key for this station's y-axis overrides (looked up per-month/per-stat below).
+        # Lookup key for this station's y-axis overrides.
         ylim_key = _ylim_key_for_field(location)
-        _warn_unmatched_ylim_periods(ylim_overrides, ylim_key, "exceedance", VALID_EXCEEDANCE_PERIODS, ylim_csv_path)
 
         ##### Read DSSReader output ########
         if report_type == 'elevation':
@@ -2785,9 +2800,14 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             # If the directory already exists, clear it out to prevent using any old figures by accident from previous field/alternative.
             shutil.rmtree(month_directory, ignore_errors=True)
 
+        month_list = list(fig_dfs[0].columns[1:])
+        month_data_source = dfs_calendaryr if location in compliance_fields else dfs
+        month_ylim = _resolve_group_ylim(
+            _get_ylim(ylim_overrides, ylim_key, "exceedance"),
+            _compute_group_data_range(month_data_source, month_list),
+        )
         monthly_ranked_dfs = {}
         for month in fig_dfs[0].columns[1:]:
-            month_ylim = _get_ylim(ylim_overrides, ylim_key, "exceedance", _normalize_month_period(month))
             if location in compliance_fields:
                 #for compliance fields, make exceedance plots with the compliance years marked with a marker.
                 df_month_alts = create_mixed_compliance_month_plots(
@@ -2832,14 +2852,14 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         # stats = ["Full Simulation Period", "Wet Water Years (28%)", "Above Normal Water Years (14%)",
         #          "Below Normal Water Years (18%)",
         #          "Dry Water Years (24%)", 'Critical Water Years (16%)']
-        _warn_unmatched_ylim_periods(
-            ylim_overrides, ylim_key, "monthly",
-            [_normalize_stat_label(stat) for stat in stats], ylim_csv_path,
+        stat_columns = ["Full Simulation Period Average" if s == "Full Simulation Period" else s for s in stats]
+        stat_ylim = _resolve_group_ylim(
+            _get_ylim(ylim_overrides, ylim_key, "monthly"),
+            _compute_group_data_range(stat_fig_dfs, stat_columns),
         )
 
         #Iterate through each stat and plot month abbreivated name by EC in current type of year
         for stat in stats:
-            stat_ylim = _get_ylim(ylim_overrides, ylim_key, "monthly", _normalize_stat_label(stat))
             create_stat_plot(
                 stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names,
                 line_styles, line_colors, plot_format=plot_format, ylim=stat_ylim,
@@ -4311,6 +4331,8 @@ def create_water_qual_plot(df_percentiles, fig_value, plot_directory, alts, line
 
         # Add a legend
         plt.legend(loc='center', ncol=4, bbox_to_anchor=[axbox.x0 + 0.5 * axbox.width, 1.08], frameon=False)
+
+    _add_endpoint_yticks(axs)
 
     # flip x-axis
     axs.invert_xaxis()
