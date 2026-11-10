@@ -11,23 +11,22 @@ if __name__ == "__main__":
     # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     # Use for running "flow" report type
-    fields = ['C_LWSTN','C_CLR011','C_KSWCK','C_SAC257','C_SAC240','C_SAC201','C_SAC120','C_FTR059','C_FTR003','SP_SAC083_YBP037', 'C_YBP020',
-              'C_NTOMA','C_AMR004','C_SAC048','C_SAC007','C_SJR225','C_SJR180','C_SJR115','C_STS059','C_STS004','C_SJR070','C_OMR014','NDO']
+    fields = ['C_SAC048', 'C_YBP020', 'C_SJR070', 'C_OMR014', 'NDOI', 'C_CAA003_CVP', 'C_CAA003_SWP',
+              'C_DMC000_CVP', 'EXPORTACTUALTD', 'QWESTFLOW', 'X2_PRV', 'TOTAL SOD STORAGE', 'TOTAL EXPORTS CVP SWP']
 
     # Used for running "diversions" report type
     # fields = ["D_LWSTN_CCT011","D_SAC240_TCC001","D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
     # "D_SAC030_MOK014","TOTAL_EXP", "C_DMC003","C_CAA003_CVP","C_CAA003_SWP","D_DMC007_CAA009"]
 
     # alternatives to include
-    # Map the DSS/model run names to the labels used in the appendix.
-    # The keys remain the short names used for data lookup.
+    # Keys are the short names used for comparisons. Values are the DSS Scenario names used for data lookup.
     alts = {
-        'NAA': 'No Action Alternative',
-        'Alt2v2_woTUCP': 'Alternative 2v2 without TUCP',
+        'NAA': 'Study9bv2_WRTE_CY',
+        'Alt1': 'Study9bv2_CY',
     }
 
     # Specify whether to use long names for alternatives in the appendix.
-    use_long_name = False      # True to use long names for alternatives in the appendix, False to use short names
+    use_long_name = True      # True to use long names for alternatives in the appendix, False to use short names
 
     # Formatting for pages containing tables. Measurements ending in "_pt"
     # are in points; row_height_cm is in centimeters.
@@ -145,4 +144,5 @@ if __name__ == "__main__":
                     table_page_format=table_page_format,
                     plot_page_format=plot_page_format,
                     plot_format=plot_format,
-                    ylim_csv_path=ylim_csv_path)
+                    ylim_csv_path=ylim_csv_path,
+                    alts_long_names=alts)

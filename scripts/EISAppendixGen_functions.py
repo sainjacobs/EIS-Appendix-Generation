@@ -159,7 +159,11 @@ def load_ylim_overrides(ylim_csv_path):
         (full-simulation-period statistic plots).
     ymin, ymax: float, optional
         Either can be left blank to leave that side of the axis on auto-scale.
-        A row with both blank is ignored.
+    y_grid_spacing: float, optional
+        Interval between y-axis gridlines/ticks. Leave blank to use the default
+        automatic integer tick spacing. This column is optional; CSVs without it
+        are treated as if every row left it blank. A row with ymin, ymax, and
+        y_grid_spacing all blank is ignored.
 
     Parameters
     ----------
@@ -169,7 +173,7 @@ def load_ylim_overrides(ylim_csv_path):
     Returns
     -------
     dict
-        Maps station key -> plot_type ("exceedance"/"monthly") -> (ymin, ymax).
+        Maps station key -> plot_type ("exceedance"/"monthly") -> (ymin, ymax, y_grid_spacing).
     """
     if not ylim_csv_path:
         return {}
@@ -179,6 +183,7 @@ def load_ylim_overrides(ylim_csv_path):
     missing_cols = required_cols - set(ylim_df.columns)
     if missing_cols:
         raise ValueError(f"ylim CSV {ylim_csv_path} is missing required column(s): {sorted(missing_cols)}")
+    has_grid_spacing_col = "y_grid_spacing" in ylim_df.columns
 
     def _cell_to_float(value):
         return None if pd.isna(value) else float(value)
@@ -197,10 +202,16 @@ def load_ylim_overrides(ylim_csv_path):
 
         ymin = _cell_to_float(row["ymin"])
         ymax = _cell_to_float(row["ymax"])
-        if ymin is None and ymax is None:
+        grid_spacing = _cell_to_float(row["y_grid_spacing"]) if has_grid_spacing_col else None
+        if grid_spacing is not None and grid_spacing <= 0:
+            raise ValueError(
+                f"ylim CSV {ylim_csv_path} has y_grid_spacing {row['y_grid_spacing']!r} for station "
+                f"{station!r} ({plot_type}); must be greater than zero."
+            )
+        if ymin is None and ymax is None and grid_spacing is None:
             continue
 
-        overrides.setdefault(station, {})[plot_type] = (ymin, ymax)
+        overrides.setdefault(station, {})[plot_type] = (ymin, ymax, grid_spacing)
 
     return overrides
 
@@ -212,7 +223,13 @@ def _ylim_key_for_field(field):
 
 def _get_ylim(overrides, station_key, plot_type):
     """Look up the (ymin, ymax) override for a station/plot_type combination, or None if not set."""
-    return overrides.get(station_key, {}).get(plot_type)
+    value = overrides.get(station_key, {}).get(plot_type)
+    return None if value is None else value[:2]
+
+def _get_grid_spacing(overrides, station_key, plot_type):
+    """Look up the y-axis gridline spacing override for a station/plot_type combination, or None if not set (falls back to the default auto integer tick spacing)."""
+    value = overrides.get(station_key, {}).get(plot_type)
+    return None if value is None else value[2]
 
 def _compute_group_data_range(dfs_list, columns):
     """Return the (min, max) of the given columns across all alternative dataframes, or (None, None) if no finite values are found."""
@@ -502,8 +519,12 @@ def _format_whole_number(value, use_commas=False):
         return f"{rounded_number:,}"
     return str(rounded_number)
 
-def _format_integer_y_axis(ax):
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+def _format_integer_y_axis(ax, grid_spacing=None):
+    """Set y-axis ticks at a fixed interval if grid_spacing is given, otherwise the default auto integer locator."""
+    if grid_spacing:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(grid_spacing))
+    else:
+        ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
 
 def _add_endpoint_yticks(ax):
@@ -1756,7 +1777,7 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
 
 def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory,
                                         alts, line_styles, line_colors, compliance_dict,
-                                        plot_format=None, ylim=None):
+                                        plot_format=None, ylim=None, y_grid_spacing=None):
     plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
@@ -1827,7 +1848,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
         #Format axes
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
-        _format_integer_y_axis(axs)
+        _format_integer_y_axis(axs, grid_spacing=y_grid_spacing)
         axs.set_ylabel(fig_value)
         axs.set_xlabel("Exceedance Probability")
 
@@ -1857,7 +1878,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
     return df_month_alts
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors,
-                      report_type='', xlims=[0, 100], plot_format=None, ylim=None):
+                      report_type='', xlims=[0, 100], plot_format=None, ylim=None, y_grid_spacing=None):
     """
     Generates and saves individual month plots
 
@@ -1882,6 +1903,9 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     ylim: tuple of (float or None, float or None), optional
         (ymin, ymax) override for the y-axis. Either side can be None to leave
         that side on auto-scale.
+    y_grid_spacing: float, optional
+        Interval between y-axis gridlines/ticks. None uses the default auto
+        integer tick spacing.
 
     Returns
     --------
@@ -1947,7 +1971,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     # flip x-axis
     axs.set_xlim(xlims)
     axs.invert_xaxis()
-    _format_integer_y_axis(axs)
+    _format_integer_y_axis(axs, grid_spacing=y_grid_spacing)
     _apply_ylim(axs, ylim)
     _add_endpoint_yticks(axs)
 
@@ -2032,7 +2056,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     plt.close()
 
 def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles,
-                     line_colors, plot_format=None, ylim=None):
+                     line_colors, plot_format=None, ylim=None, y_grid_spacing=None):
     """
     Generates and saves individual month plots
 
@@ -2055,6 +2079,9 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     ylim: tuple of (float or None, float or None), optional
         (ymin, ymax) override for the y-axis. Either side can be None to leave
         that side on auto-scale.
+    y_grid_spacing: float, optional
+        Interval between y-axis gridlines/ticks. None uses the default auto
+        integer tick spacing.
     Returns
     ----------
     None
@@ -2079,7 +2106,7 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
             axs.plot(stat_fig_dfs[fig_index]["month"], stat_fig_dfs[fig_index][stat_column], color=line_colors[fig_index],
                      linestyle=line_styles[fig_index], linewidth=plot_format["line_width"])
         axs.set_xlim(stat_fig_dfs[fig_index]["month"].iloc[0], stat_fig_dfs[fig_index]["month"].iloc[-1])
-        _format_integer_y_axis(axs)
+        _format_integer_y_axis(axs, grid_spacing=y_grid_spacing)
 
         df_stat_export = stat_fig_dfs[fig_index][["month", stat_column]].copy(deep=True)
         df_stat_export.rename(columns={stat_column: fig_value}, inplace=True)
@@ -2376,7 +2403,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     use_lumped_table_captions=False, storage_elevation_table='',
                     compliance_fields=[], compliance_dict={}, shastabin_data_path='',
                     use_long_name=False, table_page_format=None, plot_page_format=None,
-                    plot_format=None, ylim_csv_path=None):
+                    plot_format=None, ylim_csv_path=None, alts_long_names=None):
     output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
     os.makedirs(output_root, exist_ok=True)
     table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
@@ -2467,6 +2494,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         Path to a CSV with per-station y-axis overrides for the monthly exceedance
         probability plots and the full-simulation-period monthly statistic plots.
         See load_ylim_overrides for the expected columns.
+    alts_long_names: dict, optional
+        Maps each key of a dict alts to the Scenario name used to read dss_path.
+        If None, the alts names are used as Scenario names.
 
     Returns
     -------
@@ -2481,13 +2511,18 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     elif report_type in ['EC', 'Position', 'Cl']:
         fields = [(field, report_type) for field in fields]
     alt_names, alt_display_names, alt_display_lookup = _normalize_alternative_names(alts, use_long_name)
+    # Scenario name per alternative for reads from dss_path. alt_names remain the labels and comparison keys.
+    if alts_long_names is None:
+        alt_long_names = alt_names
+    else:
+        alt_long_names = [alts_long_names[name] for name in alt_names]
     locations = get_locations(location_cw_path, fields)  # Get location names for each field
     location_params = get_locations_params(location_cw_path, fields)  # Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields)  # Get the wytype to use with each field.
     if report_type in CALSIM_REPORT_TYPES:
         wyt_debug_output_dir = os.path.join(output_root, "wyt_debug")
         wy_flags_by_type = {
-            use_wytype: get_calsim_wytype_flags(dss_path, alt_names, use_wytype, debug_output_dir=wyt_debug_output_dir)
+            use_wytype: get_calsim_wytype_flags(dss_path, alt_long_names, use_wytype, debug_output_dir=wyt_debug_output_dir)
             for use_wytype in set(locations_wytypes)
         }
     else:
@@ -2569,19 +2604,19 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         if report_type == 'elevation':
             #For the elevation report
             if location[1] == "Storage":
-                dfs = parse_dssReader_output(dss_path, alt_names, location[0], report_type)
+                dfs = parse_dssReader_output(dss_path, alt_long_names, location[0], report_type)
             elif location[1] == 'Elevation':
                 # converted to elevation (ft) based on the storage elevation relationship from res_info.table in the CalSim 3 wresl code.
-                dfs = parse_dssReader_output(dss_path, alt_names, location[0], report_type, convert_to_elevation= True, orig_unit = 'TAF', storage_elevation_fn = storage_elevation_table)
+                dfs = parse_dssReader_output(dss_path, alt_long_names, location[0], report_type, convert_to_elevation= True, orig_unit = 'TAF', storage_elevation_fn = storage_elevation_table)
         elif report_type == 'Cl':
-            dfs  = parse_dssReader_output(dss_path, alt_names, location[0], report_type, convert_to_cl= True, orig_unit = 'uS/cm')
+            dfs  = parse_dssReader_output(dss_path, alt_long_names, location[0], report_type, convert_to_cl= True, orig_unit = 'uS/cm')
         elif report_type in ["EC", "Position"]:
-            dfs = parse_dssReader_output(dss_path, alt_names, location[0], report_type)
+            dfs = parse_dssReader_output(dss_path, alt_long_names, location[0], report_type)
         else:
-            dfs = parse_dssReader_output(dss_path, alt_names, location, report_type)
+            dfs = parse_dssReader_output(dss_path, alt_long_names, location, report_type)
 
         if location in compliance_fields:
-            dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alt_names, location, report_type, shastabin_data = shastabin_data_path, use_calendar_yr=use_calendar_yr)
+            dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alt_long_names, location, report_type, shastabin_data = shastabin_data_path, use_calendar_yr=use_calendar_yr)
 
         # Get table value name depending on type of report
         if report_type == "flow":
@@ -2806,6 +2841,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             _get_ylim(ylim_overrides, ylim_key, "exceedance"),
             _compute_group_data_range(month_data_source, month_list),
         )
+        month_grid_spacing = _get_grid_spacing(ylim_overrides, ylim_key, "exceedance")
         monthly_ranked_dfs = {}
         for month in fig_dfs[0].columns[1:]:
             if location in compliance_fields:
@@ -2813,7 +2849,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 df_month_alts = create_mixed_compliance_month_plots(
                     location, dfs_calendaryr, fig_value, month, month_directory,
                     alt_display_names, line_styles, line_colors, compliance_dict,
-                    plot_format=plot_format, ylim=month_ylim,
+                    plot_format=plot_format, ylim=month_ylim, y_grid_spacing=month_grid_spacing,
                 )
                 monthly_ranked_dfs[month] = df_month_alts
             else:
@@ -2822,6 +2858,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 create_month_plot(
                     dfs, fig_value, month, month_directory, alt_display_names,
                     line_styles, line_colors, plot_format=plot_format, ylim=month_ylim,
+                    y_grid_spacing=month_grid_spacing,
                 )
 
         ##Simulation Period Statistic Plots###
@@ -2857,12 +2894,14 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             _get_ylim(ylim_overrides, ylim_key, "monthly"),
             _compute_group_data_range(stat_fig_dfs, stat_columns),
         )
+        stat_grid_spacing = _get_grid_spacing(ylim_overrides, ylim_key, "monthly")
 
         #Iterate through each stat and plot month abbreivated name by EC in current type of year
         for stat in stats:
             create_stat_plot(
                 stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names,
                 line_styles, line_colors, plot_format=plot_format, ylim=stat_ylim,
+                y_grid_spacing=stat_grid_spacing,
             )
 
         ##Add saved figures to docx object as images####
