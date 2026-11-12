@@ -1,0 +1,3 @@
+SN 20261110
+
+Using: ~\AppData\Local\miniforge3\envs\eis_appendix_gen\python.exe

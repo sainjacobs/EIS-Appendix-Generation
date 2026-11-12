@@ -396,6 +396,48 @@ def get_location_wytypes(location_crosswalk_path, fields):
 
     return wytype_list
 
+def get_locations_units(location_crosswalk_path, fields):
+    """
+    Gets the report units for each field code passed, from the ReportUnits column of the crosswalk
+
+    Parameters
+    ----------
+    location_crosswalk_path: string
+        Path and file name for xlsx file containing location names and field codes
+    fields: list of strings
+        Names of the fields to be processed
+
+    Returns
+    ----------
+    units: list of str or None
+        Report unit for each field (Ex: "cfs", "km", "TAF"), with surrounding spaces removed. None if the crosswalk has
+        no ReportUnits column or the cell is blank, in which case the default unit for the report type is used.
+
+    """
+    #Read in crosswalk as a df
+    crosswalk = pd.read_excel(location_crosswalk_path)
+    if "ReportUnits" not in crosswalk.columns:
+        return [None] * len(fields)
+
+    #Look up the report unit for each field code and add to a list
+    units = []
+    for i, field in enumerate(fields):
+        if type(field) == str:
+            unit_values = crosswalk.loc[crosswalk["DSSPartB"] == field, "ReportUnits"].values
+            use_index = 0
+        elif type(field) == tuple:
+            if i > 0 and field == fields[i-1]:
+                use_index = 1
+            else:
+                use_index = 0
+            #Same row selection as get_locations, so each unit lines up with its location title.
+            unit_values = crosswalk.loc[(crosswalk['DSSPartB'] == field[0]) & (crosswalk.Parameter == field[1]), "ReportUnits"].values
+        raw_unit = unit_values[use_index]
+        unit = '' if pd.isna(raw_unit) else str(raw_unit).strip()
+        units.append(unit or None)
+
+    return units
+
 def _annualize_calsim_wyt_series(run_df, source_field, month_defined, run, dss_path):
     """
     Convert a monthly CalSim WYT time series into annual flags.
@@ -1143,6 +1185,8 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
 
             #Grab the wy that is associated with each calendar year and add as a column. This means that calendar yr 1980 will be assigned the flag for wytype associated with wy1980.
             t_dfs_calendar_yr['flag'] = wy_flags_i[use_wytype]
+            #Partial calendar years at the start and end of an Oct-Sep simulation are excluded from the percentages.
+            full_calendar_yrs = t_dfs_calendar_yr.dropna(subset=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
 
         exc_probs_i = exc_tables[table_index]["Exc Prob"]
         month_vals = {}
@@ -1154,7 +1198,7 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
 
             # Calculate the percentage of total water years that have this wytype
             if use_calendar_yr:
-                d_percent_wytype = round(len(t_dfs_calendar_yr.loc[t_dfs_calendar_yr['flag'] == year_type + 1]) / len(t_dfs_calendar_yr) * 100, 1)
+                d_percent_wytype = round(len(full_calendar_yrs.loc[full_calendar_yrs['flag'] == year_type + 1]) / len(full_calendar_yrs) * 100, 1)
             else:
                 d_percent_wytype = round(len(t_dfs[table_index].loc[t_dfs[table_index]['flag'] == year_type + 1]) / len(t_dfs[table_index]) * 100, 1)
             wytype_percents.at[year_type+1, 'percentage'] = d_percent_wytype
@@ -1571,6 +1615,19 @@ def format_table(doc_table, table_df, doc, report_type, table_page_format=None):
     # Add commas to values in table after whole-number rounding.
     add_commas_to_table(doc)
 
+    # Reduce left/right cell padding (0.03 in) on all tables. Without it, Word shrinks the label column to fit
+    # the numeric columns, wrapping labels such as "Above Normal Years (9%)"; EXACTLY row height then clips the wrapped line.
+    tblPr = doc_table._tbl.tblPr
+    for el in tblPr.findall(qn('w:tblCellMar')):
+        tblPr.remove(el)
+    cell_mar = OxmlElement('w:tblCellMar')
+    for side in ('left', 'right'):
+        mar_el = OxmlElement('w:' + side)
+        mar_el.set(qn('w:w'), '43')  # 43 twips = 0.03 in
+        mar_el.set(qn('w:type'), 'dxa')
+        cell_mar.append(mar_el)
+    tblPr.insert_element_before(cell_mar, 'w:tblLook', 'w:tblCaption', 'w:tblDescription', 'w:tblPrChange')
+
     # Align values in center of cells
     for row in doc_table.rows:
         for cell in row.cells:
@@ -1777,7 +1834,7 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
 
 def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory,
                                         alts, line_styles, line_colors, compliance_dict,
-                                        plot_format=None, ylim=None, y_grid_spacing=None):
+                                        plot_format=None, ylim=None, y_grid_spacing=None, y_label=None):
     plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
@@ -1849,7 +1906,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
         _format_integer_y_axis(axs, grid_spacing=y_grid_spacing)
-        axs.set_ylabel(fig_value)
+        axs.set_ylabel(y_label or fig_value)
         axs.set_xlabel("Exceedance Probability")
 
         _apply_plot_format(axs, plot_format, plot_format["compliance_legend_columns"])
@@ -1878,7 +1935,8 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
     return df_month_alts
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors,
-                      report_type='', xlims=[0, 100], plot_format=None, ylim=None, y_grid_spacing=None):
+                      report_type='', xlims=[0, 100], plot_format=None, ylim=None, y_grid_spacing=None,
+                      y_label=None):
     """
     Generates and saves individual month plots
 
@@ -1887,7 +1945,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     dfs: list of dataframes
         List of dataframes with monthly values as one of the columns
     fig_value: str
-        y-axis label
+        Name of the value column in the exported CSV
     month: string
         Current month to be evaluated
     month_directory: string
@@ -1906,6 +1964,8 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
     y_grid_spacing: float, optional
         Interval between y-axis gridlines/ticks. None uses the default auto
         integer tick spacing.
+    y_label: str, optional
+        y-axis label. Defaults to fig_value.
 
     Returns
     --------
@@ -1956,7 +2016,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         axs.set_xticks(percentages)
         axs.set_xticklabels(percentage_labels)
 
-        axs.set_ylabel(fig_value)
+        axs.set_ylabel(y_label or fig_value)
         axs.set_xlabel("Exceedance Probability")
 
         _apply_plot_format(axs, plot_format)
@@ -2056,7 +2116,7 @@ def create_annual_exceedance_plot(df_annual, fig_value, yr_directory, alts, line
     plt.close()
 
 def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_styles,
-                     line_colors, plot_format=None, ylim=None, y_grid_spacing=None):
+                     line_colors, plot_format=None, ylim=None, y_grid_spacing=None, y_label=None):
     """
     Generates and saves individual month plots
 
@@ -2065,7 +2125,7 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     stat_fig_dfs: list of dataframes
         Dataframes with average values by year type
     fig_value: str
-        plot ylabel
+        Name of the value column in the exported CSV
     stat: string
         Current type of year to be evaluated
     stat_directory: string
@@ -2082,6 +2142,8 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
     y_grid_spacing: float, optional
         Interval between y-axis gridlines/ticks. None uses the default auto
         integer tick spacing.
+    y_label: str, optional
+        y-axis label. Defaults to fig_value.
     Returns
     ----------
     None
@@ -2114,7 +2176,7 @@ def create_stat_plot(stat_fig_dfs, fig_value, stat, stat_directory, alts, line_s
         df_stat_export.insert(0, "Alternative", alts[fig_index])
         stat_export_rows.append(df_stat_export[["Alternative", "Statistic", "month", fig_value]])
 
-        axs.set_ylabel(fig_value)
+        axs.set_ylabel(y_label or fig_value)
         _apply_plot_format(axs, plot_format, legend_labels=alts)
 
     _apply_ylim(axs, ylim)
@@ -2467,7 +2529,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     template: str
         Path to the template doc
     location_cw_path: str
-        Path to the crosswalk file
+        Path to the crosswalk file. The ReportUnits column sets the units shown in table titles and plot labels for each
+        field. Blank cells fall back to the default unit for the report type.
     use_calendar_yr: bool
         Flag for if years should be grouped by calendar year (True) or water year (False)
     use_lumped_table_captions: bool
@@ -2519,6 +2582,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     locations = get_locations(location_cw_path, fields)  # Get location names for each field
     location_params = get_locations_params(location_cw_path, fields)  # Get the field parameter for each field (Ex: "Storage", "Elevation", "Diversion", "Delivery")
     locations_wytypes = get_location_wytypes(location_cw_path, fields)  # Get the wytype to use with each field.
+    locations_units = get_locations_units(location_cw_path, fields)  # Get the report unit for each field (None uses the report type default).
     if report_type in CALSIM_REPORT_TYPES:
         wyt_debug_output_dir = os.path.join(output_root, "wyt_debug")
         wy_flags_by_type = {
@@ -2564,7 +2628,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     doc = docx.Document(template)
     doc.styles['Heading 1'].font.size = Pt(table_page_format["appendix_heading_font_size"])
     doc.styles['Heading 2'].font.size = Pt(table_page_format["location_heading_font_size"])
-    doc.add_heading(f"Attachment{appendix_prefix}", level=1)  # Add Heading 1 (Attachment XXX)
+    doc.add_heading(f"Attachment {appendix_prefix.strip()}", level=1)  # Add Heading 1 (Attachment XXX)
 
     # Add caption style for Figure captions
     obj_styles = doc.styles
@@ -2618,37 +2682,41 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         if location in compliance_fields:
             dfs_calendaryr = parse_dssReader_calendaryr(dss_path, alt_long_names, location, report_type, shastabin_data = shastabin_data_path, use_calendar_yr=use_calendar_yr)
 
-        # Get table value name depending on type of report
+        # Get units and table value name depending on type of report. The unit comes from the ReportUnits column of the
+        # crosswalk when it is filled in for this field; otherwise the default unit for the report type is used.
+        crosswalk_unit = locations_units[field_index]
         if report_type == "flow":
-            unit = 'cfs'
-            table_value = "Monthly Flow (cfs)"
+            unit = crosswalk_unit or 'cfs'
+            table_value = f"Monthly {location_params[field_index]} ({unit})"
         elif report_type == "elevation":
             if location[1] == 'Elevation':
-                unit = 'feet'
-                table_value = "End of Month Elevation (feet)"
+                unit = crosswalk_unit or 'feet'
+                table_value = f"End of Month Elevation ({unit})"
             elif location[1] == 'Storage':
-                unit = 'TAF'
-                table_value = 'End of Month Storage (TAF)'
+                unit = crosswalk_unit or 'TAF'
+                table_value = f"End of Month Storage ({unit})"
         elif report_type == 'diversion':
-            unit = 'cfs'
-            table_value = f"Monthly {location_params[field_index]} (cfs)"
+            unit = crosswalk_unit or 'cfs'
+            table_value = f"Monthly {location_params[field_index]} ({unit})"
         elif report_type == 'temperature':
-            unit = 'DEG-F'
-            table_value = f"Monthly Temperature (DEG-F)"
+            unit = crosswalk_unit or 'DEG-F'
+            table_value = f"Monthly Temperature ({unit})"
         elif report_type == 'EC':
-            unit = "UMHOS/CM"
-            table_value = f"Monthly EC (UMHOS/CM)"
+            unit = crosswalk_unit or "UMHOS/CM"
+            table_value = f"Monthly EC ({unit})"
         elif report_type == 'Cl':
-            unit = "mg/L"
-            table_value = r"Monthly Cl (mg/L)"
+            unit = crosswalk_unit or "mg/L"
+            table_value = f"Monthly Cl ({unit})"
         elif report_type == 'Position':
-            unit = "KM"
-            table_value = r"Monthly Position (KM)"
+            unit = crosswalk_unit or "KM"
+            table_value = f"Monthly Position ({unit})"
         else:
             raise ValueError(f"No report type for {report_type} is available. Needs to be implemented.")
 
         # Get figure value name depending on type of report. This is used in the stat figure captions.
         fig_value = f"Average {location_params[field_index]} ({unit})"
+        # Y-axis label only. Captions and exported CSV headers still use fig_value.
+        y_label = f"Monthly {location_params[field_index]} ({unit})"
 
         wy_flags = wy_flags_by_type.get(locations_wytypes[field_index], wy_flags_path)
 
@@ -2726,7 +2794,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 #table_number = str(comparison_index + 1) #Track the table number you are currently using.
 
                 # Generate table title
-                table_title_prefix = "Table" + appendix_prefix + "-"
+                table_title_prefix = "Table " + appendix_prefix.strip() + "-"
 
                 table_title = locations[field_index] + ", " + comparison_table_labels[comp_table_index] + ", " + table_value
 
@@ -2776,7 +2844,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
 
                 #Add footnote specifying hydrology
                 footnote1 = doc.add_paragraph()
-                run = footnote1.add_run('* All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
+                run = footnote1.add_run('* All scenarios are simulated at current climate condition and 0 cm sea level rise.')
                 run.font.size = Pt(9)
                 footnote1.paragraph_format.space_before = Pt(1)
                 footnote1.paragraph_format.space_after = Pt(1)
@@ -2850,6 +2918,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     location, dfs_calendaryr, fig_value, month, month_directory,
                     alt_display_names, line_styles, line_colors, compliance_dict,
                     plot_format=plot_format, ylim=month_ylim, y_grid_spacing=month_grid_spacing,
+                    y_label=y_label,
                 )
                 monthly_ranked_dfs[month] = df_month_alts
             else:
@@ -2858,7 +2927,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 create_month_plot(
                     dfs, fig_value, month, month_directory, alt_display_names,
                     line_styles, line_colors, plot_format=plot_format, ylim=month_ylim,
-                    y_grid_spacing=month_grid_spacing,
+                    y_grid_spacing=month_grid_spacing, y_label=y_label,
                 )
 
         ##Simulation Period Statistic Plots###
@@ -2901,7 +2970,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             create_stat_plot(
                 stat_fig_dfs, fig_value, stat, stat_directory, alt_display_names,
                 line_styles, line_colors, plot_format=plot_format, ylim=stat_ylim,
-                y_grid_spacing=stat_grid_spacing,
+                y_grid_spacing=stat_grid_spacing, y_label=y_label,
             )
 
         ##Add saved figures to docx object as images####
@@ -2932,7 +3001,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             # Add captions below figure
             f = doc.add_paragraph()
             run = f.add_run(
-                '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
+                '*All scenarios are simulated at current climate condition and 0 cm sea level rise.')
             format_plot_note(f, plot_page_format)
 
             #Add page break after each figure
@@ -3008,7 +3077,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             #Add footnotes below figure about climate change scenario
             caption2 = doc.add_paragraph()
             run = caption2.add_run(
-                '*All scenarios are simulated at 2022 Median climate condition and 15 cm sea level rise.')
+                '*All scenarios are simulated at current climate condition and 0 cm sea level rise.')
             for plot_note in (caption0, caption1, caption2):
                 format_plot_note(plot_note, plot_page_format)
 

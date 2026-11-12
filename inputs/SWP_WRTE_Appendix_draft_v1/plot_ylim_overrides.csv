@@ -1,0 +1,23 @@
+s_no,station,location_name,plot_type,ymin,ymax,y_grid_spacing
+1,C_SAC048,Freeport Flow,exceedance,0,,1000
+2,C_SAC048,Freeport Flow,monthly,0,,750
+3,C_YBP020,Yolo Bypass Flow,exceedance,0,4500,
+4,C_YBP020,Yolo Bypass Flow,monthly,0,900,
+5,C_SJR070,Vernalis Flow,exceedance,0,,
+6,C_SJR070,Vernalis Flow,monthly,0,,
+7,C_OMR014,OMR Flow,exceedance,0,,
+8,C_OMR014,OMR Flow,monthly,0,,
+9,NDOI,Delta Outflow (NDOI as provided by CalSim),exceedance,0,,
+10,NDOI,Delta Outflow (NDOI as provided by CalSim),monthly,0,,
+11,C_CAA003_CVP,Banks CVP Exports,exceedance,0,,
+12,C_CAA003_CVP,Banks CVP Exports,monthly,0,,
+13,C_CAA003_SWP,Banks SWP exports,exceedance,0,,
+14,C_CAA003_SWP,Banks SWP exports,monthly,0,,
+15,C_DMC000_CVP,Jones CVP Exports,exceedance,0,,
+16,C_DMC000_CVP,Jones CVP Exports,monthly,0,,
+17,EXPORTACTUALTD,Combined South Delta Exports (review),exceedance,0,,
+18,EXPORTACTUALTD,Combined South Delta Exports (review),monthly,0,,
+19,QWESTFLOW,QWEST,exceedance,0,,
+20,QWESTFLOW,QWEST,monthly,0,,
+21,X2_PRV,X2,exceedance,0,,
+22,X2_PRV,X2,monthly,0,,

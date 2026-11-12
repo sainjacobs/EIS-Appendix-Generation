@@ -11,8 +11,8 @@ if __name__ == "__main__":
     # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     # Use for running "flow" report type
-    fields = ['C_SAC048', 'C_YBP020', 'C_SJR070', 'C_OMR014', 'NDOI', 'C_CAA003_CVP', 'C_CAA003_SWP',
-              'C_DMC000_CVP', 'EXPORTACTUALTD', 'QWESTFLOW', 'X2_PRV', 'TOTAL SOD STORAGE', 'TOTAL EXPORTS CVP SWP']
+    fields = ['C_SAC048', 'C_YBP020', 'C_SJR070', 'C_SJR070_C', 'C_OMR014', 'NDOI', 'QWESTFLOW', 'TOTAL EXPORTS CVP SWP',
+               'C_CAA003_CVP', 'C_CAA003_SWP', 'C_DMC000_CVP', 'EXPORTACTUALTD',  'TOTAL SOD STORAGE', 'X2_PRV']
 
     # Used for running "diversions" report type
     # fields = ["D_LWSTN_CCT011","D_SAC240_TCC001","D_SAC207_GCC007","D_NTOMA_FSC003","D_MLRTN_FRK000","D_MLRTN_MDC006",
@@ -31,8 +31,8 @@ if __name__ == "__main__":
     # Formatting for pages containing tables. Measurements ending in "_pt"
     # are in points; row_height_cm is in centimeters.
     table_page_format = {
-        "appendix_heading_font_size": 21,
-        "location_heading_font_size": 16,
+        "appendix_heading_font_size": 18,
+        "location_heading_font_size": 14,
         "table_font_size": 8,
         "caption_font_size": 10,
         "footnote_font_size": 8,
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     use_calendar_yr = True  # Note: For Trinity LTO tables/figures, use False.
 
     # Prefix for tables and figures in appendix
-    appendix_prefix = " F.2.2"  # F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion
+    appendix_prefix = "5B"  # F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion
 
     # Define base working directory for reference
     base_dir = r"C:\Github\EIS-Appendix-Generation"
