@@ -36,6 +36,7 @@ CALSIM_WYT_SOURCE_FIELDS = {
     "60-20-20": ("WYT_SJR_", 5),
 }
 CALSIM_REPORT_TYPES = {"flow", "elevation", "diversion"}
+ONE_DECIMAL_FIELDS = {"X2", "X2_PRV"}
 
 DEFAULT_TABLE_PAGE_FORMAT = {
     "appendix_heading_font_size": 21,
@@ -561,6 +562,20 @@ def _format_whole_number(value, use_commas=False):
         return f"{rounded_number:,}"
     return str(rounded_number)
 
+def _format_decimal_number(value, decimal_places):
+    try:
+        number = round(float(value), decimal_places)
+    except (TypeError, ValueError):
+        return str(value)
+
+    if not np.isfinite(number):
+        return str(value)
+
+    if number == 0:
+        # Drop the sign so tiny negative values print as 0.00.
+        number = 0.0
+    return f"{number:,.{decimal_places}f}"
+
 def _format_integer_y_axis(ax, grid_spacing=None):
     """Set y-axis ticks at a fixed interval if grid_spacing is given, otherwise the default auto integer locator."""
     if grid_spacing:
@@ -1047,7 +1062,7 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
 
     return t_dfs
 
-def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calendar_yr = False):
+def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calendar_yr = False, decimal_places = 0):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
 
@@ -1069,6 +1084,8 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
         Optional. Default is false. True indicates months should be sorted into calendar year instead of water year
         when calculating the water year type averages. False indicated that months will be sorted into water years when
         determining water year type.
+    decimal_places: int
+        Optional. Default is 0 (whole numbers). Number of decimal places that table values are rounded to.
 
 
     Returns
@@ -1230,8 +1247,10 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
         #Remove extra columns
         exc_tables[table_index].drop(columns=["Exc Prob"], inplace=True)
 
-        # Round table values to nearest whole number for display/output tables.
-        exc_tables[table_index] = exc_tables[table_index].astype(float).round(0).astype("Int64")
+        # Round before differencing so displayed differences match the displayed values.
+        exc_tables[table_index] = exc_tables[table_index].astype(float).round(decimal_places)
+        if decimal_places == 0:
+            exc_tables[table_index] = exc_tables[table_index].astype("Int64")
 
         # Add row labels for report tables in first column
         exc_tables[table_index].insert(0, "Statistic", row_labels)
@@ -1387,7 +1406,7 @@ def format_plot_note(paragraph, plot_page_format=None):
 
 def add_commas_to_table(doc):
     """
-    Formats numeric values in all docx tables as nearest whole numbers with commas.
+    Formats numeric values in all docx tables as nearest whole numbers with commas. Values with decimal points are left unchanged.
 
     Parameters
     ----------
@@ -1401,6 +1420,9 @@ def add_commas_to_table(doc):
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
                     for run in paragraph.runs:
+                        # Leave decimal values (X2 tables) as formatted.
+                        if "." in run.text:
+                            continue
                         try:
                             # Check if the text is a number
                             float(run.text)
@@ -1528,7 +1550,7 @@ def format_table_basic(doc_table, table_df, doc, table_page_format=None):
     # Use compact, consistent text spacing without affecting earlier tables.
     format_compact_table_text(doc_table, table_page_format)
 
-def format_table(doc_table, table_df, doc, report_type, table_page_format=None):
+def format_table(doc_table, table_df, doc, report_type, table_page_format=None, decimal_places=0):
     """
     Creates tables formatted for appendix report from exceedance tables
 
@@ -1542,6 +1564,8 @@ def format_table(doc_table, table_df, doc, report_type, table_page_format=None):
         Docx object containing table to be formatted
     report_type: str
         type of report. (used to determine what decimal place to round to).
+    decimal_places: int
+        Optional. Default is 0 (whole numbers). Number of decimal places for numeric values.
 
     Returns
     -------
@@ -1561,8 +1585,12 @@ def format_table(doc_table, table_df, doc, report_type, table_page_format=None):
             if column_index == 0: #Add the exceedance percentage row labels to the table
                 doc_table.cell(row_index + 1, column_index).text = str(table_df.values[row_index, column_index])
             else:
-                # For all other columns, add values rounded to the nearest whole number.
-                doc_table.cell(row_index + 1, column_index).text = _format_whole_number(table_df.values[row_index, column_index])
+                # For all other columns, add values rounded to whole numbers, or to decimal_places when given.
+                cell_value = table_df.values[row_index, column_index]
+                if decimal_places:
+                    doc_table.cell(row_index + 1, column_index).text = _format_decimal_number(cell_value, decimal_places)
+                else:
+                    doc_table.cell(row_index + 1, column_index).text = _format_whole_number(cell_value)
     # Set table top and bottom borders
     borders = OxmlElement('w:tblBorders')
     bottom_border = OxmlElement('w:bottom')
@@ -1641,6 +1669,31 @@ def format_table(doc_table, table_df, doc, report_type, table_page_format=None):
     # Use compact, consistent text spacing without affecting earlier tables.
     format_compact_table_text(doc_table, table_page_format)
 
+
+def set_four_digit_column_widths(doc, doc_table, table_page_format=None):
+    """
+    Sets the numeric columns of a table to a fixed width halfway between the widths needed for 3-digit and 4-digit values (with a sign and comma).
+    The label column takes up to 3.4 in, but never more than the text width left on the page.
+    """
+    font_size_pt = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)["table_font_size"]
+
+    def width_for_chars(char_count):
+        # Characters at roughly 0.55 em each, plus 0.03 in cell padding per side, rounded up to the next 0.1 in.
+        needed_in = char_count * 0.55 * font_size_pt / 72 + 0.06
+        return (int(needed_in * 10) + 1) / 10
+
+    numeric_in = (width_for_chars(5) + width_for_chars(6)) / 2
+
+    section = doc.sections[-1]
+    text_width_in = (section.page_width - section.left_margin - section.right_margin) / 914400
+    label_in = min(3.4, text_width_in - numeric_in * (len(doc_table.columns) - 1))
+
+    doc_table.autofit = False
+    for column_index, column in enumerate(doc_table.columns):
+        column_width = Inches(label_in if column_index == 0 else numeric_in)
+        column.width = column_width
+        for cell in column.cells:
+            cell.width = column_width
 
 def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
     """
@@ -2293,7 +2346,7 @@ def create_water_supply_appendix(alts, appendix_prefix, dss_path, doc_name, new_
     # Open the word document template. This template has the heading style 2 formatted with numbering to allow the figures
     # to inherit the heading numbering.
     doc = docx.Document(template)
-    doc.add_heading(f"Attachment{appendix_prefix}", level=1)  # Add Heading 1 (Attachment XXX)
+    doc.add_heading(f"Appendix{appendix_prefix}", level=1)  # Add Heading 1 (Appendix XXX)
 
     # Add caption style for Figure captions
     obj_styles = doc.styles
@@ -2628,7 +2681,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     doc = docx.Document(template)
     doc.styles['Heading 1'].font.size = Pt(table_page_format["appendix_heading_font_size"])
     doc.styles['Heading 2'].font.size = Pt(table_page_format["location_heading_font_size"])
-    doc.add_heading(f"Attachment {appendix_prefix.strip()}", level=1)  # Add Heading 1 (Attachment XXX)
+    doc.add_heading(f"Appendix {appendix_prefix.strip()}", level=1)  # Add Heading 1 (Appendix XXX)
 
     # Add caption style for Figure captions
     obj_styles = doc.styles
@@ -2721,7 +2774,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         wy_flags = wy_flags_by_type.get(locations_wytypes[field_index], wy_flags_path)
 
         #Create Exceedance Tables from DSS Reader output
-        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr)
+        # X2 position tables use one decimal; other tables use whole numbers.
+        table_decimal_places = 1 if report_type == "Position" or location in ONE_DECIMAL_FIELDS else 0
+        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr, decimal_places = table_decimal_places)
 
         output_root_e_dfs = os.path.join(output_root, "e_dfs")
         output_root_fig_dfs = os.path.join(output_root, "fig_dfs")
@@ -2812,7 +2867,10 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 # extra row is so we can add the header row
                 t = doc.add_table(table.shape[0] + 1, table.shape[1])
                 #Format table for report
-                format_table(t, table, doc, report_type, table_page_format)
+                format_table(t, table, doc, report_type, table_page_format, decimal_places=table_decimal_places)
+                # The Alt Minus Base table has small values; fix its numeric column widths to fit 4-digit values.
+                if comp_table_index == 2:
+                    set_four_digit_column_widths(doc, t, table_page_format)
 
             #Get the number of years of simulation record from the full exceedance probability/values dataframe for each of the naa and the alt you are comparing
             il_sample_sizes =[]
@@ -4529,7 +4587,7 @@ def create_compliance_appendix(scenario_names, template, doc_name, new_doc):
     # set up the document
     appendix_prefix = " F.2.8"
     doc = docx.Document(template)
-    doc.add_heading(f"Attachment{appendix_prefix}", level=1)
+    doc.add_heading(f"Appendix{appendix_prefix}", level=1)
 
     # Add caption style for Figure captions
     obj_styles = doc.styles

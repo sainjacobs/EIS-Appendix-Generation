@@ -11,7 +11,7 @@ if __name__ == "__main__":
     # fields = ["S_TRNTY","S_SHSTA","S_OROVL","S_FOLSM","S_SLUIS","S_SLUIS_CVP","S_SLUIS_SWP","S_MELON","S_MLRTN"]
 
     # Use for running "flow" report type
-    fields = ['C_SAC048', 'C_YBP020', 'C_SJR070', 'C_SJR070_C', 'C_OMR014', 'NDOI', 'QWESTFLOW', 'TOTAL EXPORTS CVP SWP',
+    fields = ['C_SAC048', 'C_YBP020', 'C_SJR070', 'C_SJR070_C', 'C_OMR014', 'NDOI', 'QWESTFLOW', 
                'C_CAA003_CVP', 'C_CAA003_SWP', 'C_DMC000_CVP', 'EXPORTACTUALTD',  'TOTAL SOD STORAGE', 'X2_PRV']
 
     # Used for running "diversions" report type
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # codes, and line-style strings are accepted. Supply at least one color and
     # line style for every alternative included above.
     plot_format = {
-        "line_colors": ["k", "b", "m", "orange", "y", "r", "purple", "g", "c"],
+        "line_colors": ["k", "#00B0F0", "m", "orange", "y", "r", "purple", "g", "c"],
         "line_styles": ["-", "-.", "--", "-.", "-.", "--", "-.", "-.", ":"],
         "line_width": 1.5,
         "figure_size": (10, 5),
