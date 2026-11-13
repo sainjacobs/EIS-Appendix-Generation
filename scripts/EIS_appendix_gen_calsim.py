@@ -92,6 +92,11 @@ if __name__ == "__main__":
     # Select whether to use the calendar year to group data.
     use_calendar_yr = True  # Note: For Trinity LTO tables/figures, use False.
 
+    # Exceedance probability formula used for the tables and plots.
+    # "current": m/(N+1) x 100. Plots stop short of 0% and 100%.
+    # "legacy_method": (m-1)/(N-1) x 100. Plots span 0% to 100%.
+    exceedance_method = "legacy_method"
+
     # Prefix for tables and figures in appendix
     appendix_prefix = "5B"  # F.2.1 is elevation; F.2.2 is flow; F.2.3 is diversion
 
@@ -145,4 +150,5 @@ if __name__ == "__main__":
                     plot_page_format=plot_page_format,
                     plot_format=plot_format,
                     ylim_csv_path=ylim_csv_path,
-                    alts_long_names=alts)
+                    alts_long_names=alts,
+                    exceedance_method=exceedance_method)

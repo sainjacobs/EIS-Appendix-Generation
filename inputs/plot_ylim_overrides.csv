@@ -1,5 +1,5 @@
 s_no,station,location_name,plot_type,ymin,ymax,y_grid_spacing
-1,C_CAA003_CVP,CVP Banks PP Exports,exceedance,0,2200,
+1,C_CAA003_CVP,CVP Banks PP Exports,exceedance,0,2250,
 2,C_CAA003_CVP,CVP Banks PP Exports,monthly,0,1000,
 3,C_SAC048,Sacramento River Flow at Freeport,exceedance,0,90000,
 4,C_SAC048,Sacramento River Flow at Freeport,monthly,0,64000,
@@ -19,8 +19,8 @@ s_no,station,location_name,plot_type,ymin,ymax,y_grid_spacing
 18,C_DMC000_CVP,Jones PP Exports,monthly,0,5000,
 19,EXPORTACTUALTD,Total Delta Exports,exceedance,0,15000,
 20,EXPORTACTUALTD,Total Delta Exports,monthly,0,12000,
-21,QWESTFLOW,QWEST,exceedance,-7000,77000,
-22,QWESTFLOW,QWEST,monthly,-4000,20000,
+21,QWESTFLOW,QWEST,exceedance,-10000,80000,
+22,QWESTFLOW,QWEST,monthly,-5000,20000,
 23,X2_PRV,X2 Position,exceedance,45,95,
 24,X2_PRV,X2 Position,monthly,45,95,
 25,TOTAL SOD STORAGE,Total SOD Storage,exceedance,0,2000,

@@ -1062,7 +1062,24 @@ def parse_dssReader_calendaryr(dss_path, runs, field, report_type,  convert_to_e
 
     return t_dfs
 
-def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calendar_yr = False, decimal_places = 0):
+def _exceedance_probability(rank, n, method):
+    """
+    Converts rank m (1 = largest) of n non-null values to an exceedance probability in percent.
+
+    method: "current" uses m/(N+1) x 100, which never reaches 0% or 100%.
+            "legacy_method" uses (m-1)/(N-1) x 100, which spans 0% to 100%.
+    """
+    if method == "current":
+        return rank / (n + 1) * 100
+    if method == "legacy_method":
+        if n < 2:
+            raise ValueError("legacy_method exceedance needs at least 2 values per month.")
+        return (rank - 1) / (n - 1) * 100
+    raise ValueError(f"Unknown exceedance_method {method!r}. Use 'current' or 'legacy_method'.")
+
+
+def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calendar_yr = False, decimal_places = 0,
+                             exceedance_method = "current"):
     """
     Creates exceedance tables formatted for appendix report from transposed DSSReader Output
 
@@ -1086,6 +1103,8 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
         determining water year type.
     decimal_places: int
         Optional. Default is 0 (whole numbers). Number of decimal places that table values are rounded to.
+    exceedance_method: str
+    Optional. Default is "current" (m/(N+1)). "legacy_method" uses (m-1)/(N-1), which includes 0% and 100%.
 
 
     Returns
@@ -1113,8 +1132,8 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
         # Create dataframe for 10%, 20%, 30%, etc. exceedance values by linearly interpolating between the table values for each month
         table_interp = pd.DataFrame(index = range(10,100, 10))
         table_interp.index.name = 'Exc Prob'
-        #Create dataframe for 1,2,3..., 99% exceedance values by linearly interpolating between the table values for each month. Used for plotting figures.
-        table_all = pd.DataFrame(index = range(1,101,1))
+        #Create dataframe for 0,1,2,3..., 100% exceedance values by linearly interpolating between the table values for each month. Used for plotting figures.
+        table_all = pd.DataFrame(index = range(0,101,1))
         table_all.index.name = 'Exc Prob'
 
         for m_name in table.columns[-12:]:
@@ -1124,7 +1143,7 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
             df_month.dropna(inplace = True)
             #Calculate the rank for the remaining (non-null) entries
             df_month['Rank'] = range(1,len(df_month)+1)
-            df_month['Exc Prob'] = df_month["Rank"]/ (df_month.shape[0] + 1) * 100 # m/(N+1)
+            df_month['Exc Prob'] = _exceedance_probability(df_month["Rank"], df_month.shape[0], exceedance_method)
 
             #Interpolate to get the 10,20,...,90% exc prob values and place in dataframe.
             exceedance_values = np.interp(table_interp.index.values, df_month['Exc Prob'].values, df_month[m_name].values)
@@ -1137,7 +1156,8 @@ def create_exceedance_tables(t_dfs, wy_flags, use_wytype, report_type, use_calen
             #Only include values for exp probabilities between min(m/(N+1)) and max(m/(N+1))
             df_exceedance_values_all = df_exceedance_values_all.loc[(df_exceedance_values_all.index>= df_month['Exc Prob'].min()) &(df_exceedance_values_all.index<=df_month['Exc Prob'].max())]
             table_all[m_name]=  df_exceedance_values_all
-        #Reset index for the table_all
+        #Drop exceedance points outside the range of the data for every month, then reset index for the table_all
+        table_all.dropna(how = 'all', inplace = True)
         table_all.reset_index(inplace = True, drop = False)
 
         #Add the lowest and highest exceedance probability rows
@@ -1887,7 +1907,8 @@ def format_table_supply(doc_table, df_table, doc, comparison, il_page_breaks):
 
 def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, month, month_directory,
                                         alts, line_styles, line_colors, compliance_dict,
-                                        plot_format=None, ylim=None, y_grid_spacing=None, y_label=None):
+                                        plot_format=None, ylim=None, y_grid_spacing=None, y_label=None,
+                                        exceedance_method="current"):
     plot_format = _resolve_format(DEFAULT_PLOT_FORMAT, plot_format)
     if not os.path.exists(month_directory):
         os.makedirs(month_directory)
@@ -1917,7 +1938,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
         df_month.sort_values(by = month, inplace = True, ascending = False)
         df_month.dropna(subset = [month], inplace = True)
         df_month['Rank'] = range(1, len(df_month) + 1)
-        df_month['Exc Prob'] = df_month["Rank"] / (df_month.shape[0] + 1) * 100  # m/(N+1)
+        df_month['Exc Prob'] = _exceedance_probability(df_month["Rank"], df_month.shape[0], exceedance_method)
 
         #Create a column to indicate whether or not this location is used for compliance under this alt (This depends on Shastabin value)
         #Shastabin_ == 1 or 2 means compliance location is at Sac Rv at AIRPORT RD.
@@ -1989,7 +2010,7 @@ def create_mixed_compliance_month_plots(location, dfs_calendaryr, fig_value, mon
 
 def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles, line_colors,
                       report_type='', xlims=[0, 100], plot_format=None, ylim=None, y_grid_spacing=None,
-                      y_label=None):
+                      y_label=None, exceedance_method="current"):
     """
     Generates and saves individual month plots
 
@@ -2053,7 +2074,7 @@ def create_month_plot(dfs, fig_value, month, month_directory, alts, line_styles,
         df_month.sort_values(by=month, inplace=True, ascending=False)
         df_month.dropna(subset=[month], inplace=True)
         df_month['Rank'] = range(1, len(df_month) + 1)
-        df_month['Exc Prob'] = df_month["Rank"] / (df_month.shape[0] + 1) * 100  # m/(N+1)
+        df_month['Exc Prob'] = _exceedance_probability(df_month["Rank"], df_month.shape[0], exceedance_method)
         df_month_export = df_month.reset_index(drop=False).rename(columns={month: fig_value})
         if df_month_export.columns[0] != 'Year':
             df_month_export.rename(columns={df_month_export.columns[0]: 'Year'}, inplace=True)
@@ -2518,7 +2539,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     use_lumped_table_captions=False, storage_elevation_table='',
                     compliance_fields=[], compliance_dict={}, shastabin_data_path='',
                     use_long_name=False, table_page_format=None, plot_page_format=None,
-                    plot_format=None, ylim_csv_path=None, alts_long_names=None):
+                    plot_format=None, ylim_csv_path=None, alts_long_names=None, exceedance_method="current"):
     output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
     os.makedirs(output_root, exist_ok=True)
     table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
@@ -2776,7 +2797,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
         #Create Exceedance Tables from DSS Reader output
         # X2 position tables use one decimal; other tables use whole numbers.
         table_decimal_places = 1 if report_type == "Position" or location in ONE_DECIMAL_FIELDS else 0
-        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr, decimal_places = table_decimal_places)
+        e_dfs, exc_prob, fig_dfs,il_num_years= create_exceedance_tables(dfs, wy_flags, locations_wytypes[field_index], report_type, use_calendar_yr = use_calendar_yr, decimal_places = table_decimal_places, exceedance_method = exceedance_method)
 
         output_root_e_dfs = os.path.join(output_root, "e_dfs")
         output_root_fig_dfs = os.path.join(output_root, "fig_dfs")
@@ -2976,7 +2997,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     location, dfs_calendaryr, fig_value, month, month_directory,
                     alt_display_names, line_styles, line_colors, compliance_dict,
                     plot_format=plot_format, ylim=month_ylim, y_grid_spacing=month_grid_spacing,
-                    y_label=y_label,
+                    y_label=y_label, exceedance_method=exceedance_method,
                 )
                 monthly_ranked_dfs[month] = df_month_alts
             else:
@@ -2985,7 +3006,7 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                 create_month_plot(
                     dfs, fig_value, month, month_directory, alt_display_names,
                     line_styles, line_colors, plot_format=plot_format, ylim=month_ylim,
-                    y_grid_spacing=month_grid_spacing, y_label=y_label,
+                    y_grid_spacing=month_grid_spacing, y_label=y_label, exceedance_method=exceedance_method,
                 )
 
         ##Simulation Period Statistic Plots###
