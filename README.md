@@ -51,6 +51,7 @@ Set up an environment by running `conda env create -f appendix_gen.yml`
    in the DSS pathname. Suggested fields are below in the Suggested Fields section and provided in the python file.
    3) Define the `alts` list, specify the same run names that you provided in the DSSReader (such as NAA, Alt1, etc.) All names should be exactly the same, except that
    "Baseline" should be referred to as "NAA" in these scripts.
+   Optionally, define `alts_aliases` (long DSS scenario name -> display alias) and set `use_alias = True` to show the aliases in plots, tables, and plot-export CSVs. `use_alias` overrides `use_long_name`.
    4) If creating a CalSim or salinity appendix, define the `report_type` variable as either "flow", "elevation", or "diversion" for a CalSim appendices or "EC", "Cl", or "Position" for a DSM2 (salinity) appendix.
    5) if creating a compliance appenddix, set `scenario_names` to contain the names and files for each alternative. The structure of this dictionary is '<display name>': '<file name>'.
    6) Define the `appendix_prefix` variable with the prefix you want for all appendix tables and figures in your report. Include a leading space. Recommended options are provided.

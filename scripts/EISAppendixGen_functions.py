@@ -260,9 +260,11 @@ def _resolve_group_ylim(override, data_range):
     return (ymin, ymax)
 
 
-def _normalize_alternative_names(alts, use_long_name=False):
+def _normalize_alternative_names(alts, use_long_name=False, alts_aliases=None, use_alias=False):
     """
     Split alternative inputs into model/run IDs and display labels.
+
+    When use_alias is True, the display label is alts_aliases[long_name] and overrides use_long_name.
     """
     alt_names = []
     alt_display_names = []
@@ -288,7 +290,12 @@ def _normalize_alternative_names(alts, use_long_name=False):
             raise ValueError(f"Could not determine alternative model/run name from {alt!r}.")
 
         alt_names.append(str(alt_name))
-        alt_display_names.append(str(long_name if use_long_name else alt_name))
+        if use_alias:
+            if long_name not in alts_aliases:
+                raise ValueError(f"No alias defined in alts_aliases for {long_name!r}.")
+            alt_display_names.append(str(alts_aliases[long_name]))
+        else:
+            alt_display_names.append(str(long_name if use_long_name else alt_name))
 
     return alt_names, alt_display_names, dict(zip(alt_names, alt_display_names))
 
@@ -2539,7 +2546,8 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
                     use_lumped_table_captions=False, storage_elevation_table='',
                     compliance_fields=[], compliance_dict={}, shastabin_data_path='',
                     use_long_name=False, table_page_format=None, plot_page_format=None,
-                    plot_format=None, ylim_csv_path=None, alts_long_names=None, exceedance_method="current"):
+                    plot_format=None, ylim_csv_path=None, alts_long_names=None, exceedance_method="current",
+                    alts_aliases=None, use_alias=False):
     output_root = os.path.dirname(os.path.abspath(new_doc)) or os.getcwd()
     os.makedirs(output_root, exist_ok=True)
     table_page_format = _resolve_format(DEFAULT_TABLE_PAGE_FORMAT, table_page_format)
@@ -2634,6 +2642,11 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
     alts_long_names: dict, optional
         Maps each key of a dict alts to the Scenario name used to read dss_path.
         If None, the alts names are used as Scenario names.
+    alts_aliases: dict, optional
+        Maps each long Scenario name to the alias shown in plots, tables, and
+        plot-export CSVs. Used only when use_alias is True.
+    use_alias: bool
+        True to display alts_aliases in the report and exports. Overrides use_long_name.
 
     Returns
     -------
@@ -2647,7 +2660,9 @@ def create_appendix(report_type, alts, fields, appendix_prefix, dss_path, doc_na
             fields)  # Returns a list of tuples with the type of field (elevation or storage). Ex: [("S_TRNTY", 'Storage'), ("S_TRNTY", 'Elevation'), ("S_SHSTA", 'Storage'),  ("S_SHSTA", 'Elevation')]
     elif report_type in ['EC', 'Position', 'Cl']:
         fields = [(field, report_type) for field in fields]
-    alt_names, alt_display_names, alt_display_lookup = _normalize_alternative_names(alts, use_long_name)
+    alt_names, alt_display_names, alt_display_lookup = _normalize_alternative_names(alts, use_long_name, alts_aliases, use_alias)
+    if use_alias:
+        print(f"Using aliases in the report: {alt_display_names}")
     # Scenario name per alternative for reads from dss_path. alt_names remain the labels and comparison keys.
     if alts_long_names is None:
         alt_long_names = alt_names

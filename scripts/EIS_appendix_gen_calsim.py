@@ -25,7 +25,16 @@ if __name__ == "__main__":
         'Alt1': 'Study9bv2_CY',
     }
 
-    # Specify whether to use long names for alternatives in the appendix.
+    # Aliases shown in plots, tables, and plot-export CSVs. Keys are the DSS Scenario names from alts above.
+    alts_aliases = {
+        'Study9bv2_WRTE_CY': 'Baseline Conditions',
+        'Study9bv2_CY': 'Proposed Project',
+    }
+
+    # True to show alts_aliases in the appendix. Overrides use_long_name.
+    use_alias = True
+
+    # Specify whether to use long names for alternatives in the appendix (ignored when use_alias is True).
     use_long_name = True      # True to use long names for alternatives in the appendix, False to use short names
 
     # Formatting for pages containing tables. Measurements ending in "_pt"
@@ -151,4 +160,6 @@ if __name__ == "__main__":
                     plot_format=plot_format,
                     ylim_csv_path=ylim_csv_path,
                     alts_long_names=alts,
-                    exceedance_method=exceedance_method)
+                    exceedance_method=exceedance_method,
+                    alts_aliases=alts_aliases,
+                    use_alias=use_alias)
